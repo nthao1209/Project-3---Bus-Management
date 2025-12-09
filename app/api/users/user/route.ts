@@ -2,31 +2,19 @@ import { NextResponse } from 'next/server';
 import { dbConnect } from '@/lib/dbConnect';
 import { User } from '@/models/models';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers';
-
-async function getCurrentUserId() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get('token')?.value;
-  if (!token) return null;
-  try {
-    const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
-    return decoded.userId;
-  } catch (error) {
-    return null;
-  }
-}
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET() {
   try {
     await dbConnect();
-    const userId = await getCurrentUserId();
+    const currentUser = await getCurrentUser();
 
-    if (!userId) {
+    if (!currentUser) {
       return NextResponse.json({ message: 'Chưa đăng nhập' }, { status: 401 });
     }
 
-    const user = await User.findOne({ _id: userId, isActive: true }).select('-password');
+    const user = await User.findOne({ _id: currentUser.userId, isActive: true }).select('-password');
     
     if (!user) {
       return NextResponse.json({ message: 'Tài khoản không tồn tại hoặc đã bị khóa' }, { status: 404 });
@@ -41,16 +29,16 @@ export async function GET() {
 export async function PUT(req: Request) { 
   try {
     await dbConnect();
-    const userId = await getCurrentUserId();
+    const currentUser = await getCurrentUser();
 
-    if (!userId) {
+    if (!currentUser) {
       return NextResponse.json({ message: 'Chưa đăng nhập' }, { status: 401 });
     }
 
     const body = await req.json();
     const { name, email, phone, password, newPassword } = body;
 
-    const user = await User.findOne({ _id: userId, isActive: true });
+    const user = await User.findOne({ _id: currentUser.userId, isActive: true });
     if (!user) return NextResponse.json({ message: 'User không tồn tại hoặc bị khóa' }, { status: 404 });
 
     if (name) user.name = name;
@@ -97,13 +85,13 @@ export async function PUT(req: Request) {
 export async function DELETE() {
   try {
     await dbConnect();
-    const userId = await getCurrentUserId();
+    const currentUser = await getCurrentUser();
 
-    if (!userId) {
+    if (!currentUser) {
       return NextResponse.json({ message: 'Chưa đăng nhập' }, { status: 401 });
     }
 
-    await User.findByIdAndUpdate(userId, { isActive: false });
+    await User.findByIdAndUpdate(currentUser.userId, { isActive: false });
 
     // Xóa cookie token
     const cookieStore = await cookies();

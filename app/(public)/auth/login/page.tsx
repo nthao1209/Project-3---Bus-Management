@@ -29,10 +29,8 @@ export default function LoginPage() {
 
       message.success('Đăng nhập thành công!');
 
-      // Lưu thông tin cơ bản để hiển thị (KHÔNG lưu token vì đã có HttpOnly Cookie)
       localStorage.setItem('user_info', JSON.stringify(data.user));
 
-      // Điều hướng dựa trên Role
       switch (data.user.role) {
         case 'admin':
           router.push('/admin/dashboard');
@@ -41,10 +39,10 @@ export default function LoginPage() {
           router.push('/driver/schedule');
           break;
         case 'owner':
-          router.push('/company/dashboard');
+          router.push('/owner/dashboard');
           break;
         default:
-          router.push('/'); // Khách hàng về trang chủ
+          router.push('/'); 
       }
       
     } catch (error: any) {

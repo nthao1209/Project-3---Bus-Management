@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import { AntdRegistry } from '@ant-design/nextjs-registry';
-import Header from '@/components/Header';
-import Footer from '@/components/Footer';
+import AntdProvider from '@/components/AntdProvider';
+import './globals.css';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -20,13 +20,13 @@ export default function RootLayout({
     <html lang="vi">
       <body className={inter.className}>
         <AntdRegistry>
-          <div className="flex flex-col min-h-screen">
-            <Header />
-            <main className="flex-grow bg-[#f2f2f2]">
-              {children}
-            </main>
-            <Footer />
-          </div>
+          <AntdProvider>
+            <div className="flex flex-col min-h-screen">
+              <main className="flex-grow bg-[#f2f2f2]">
+                {children}
+              </main>
+            </div>
+          </AntdProvider>
         </AntdRegistry>
       </body>
     </html>

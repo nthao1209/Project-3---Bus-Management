@@ -12,7 +12,6 @@ export default function RegisterPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
-  // Hàm xử lý khi form submit thành công (không có lỗi validate)
   const onFinish = async (values: any) => {
     setLoading(true);
     try {
@@ -30,7 +29,7 @@ export default function RegisterPage() {
 
       message.success('Đăng ký thành công! Đang chuyển hướng...');
       setTimeout(() => {
-        router.push('/login');
+        router.push('/auth/login');
       }, 1000);
       
     } catch (error: any) {

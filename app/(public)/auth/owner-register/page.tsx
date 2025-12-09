@@ -28,7 +28,7 @@ export default function OwnerRegisterPage() {
   const onFinish = async (values: any) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/users/owner/register', {
+      const res = await fetch('/api/auth/owner-register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),

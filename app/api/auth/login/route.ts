@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import {dbConnect} from '@/lib/dbConnect';
-import { User } from '@/models/models';
+import { User,Company } from '@/models/models';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { cookies } from 'next/headers'; // Dùng để set cookie an toàn
@@ -12,7 +12,6 @@ export async function POST(req: Request) {
 
     
     const user = await User.findOne({ email });
-
     if (!user) {
       return NextResponse.json(
         { message: 'Email hoặc mật khẩu không đúng' },
@@ -34,11 +33,17 @@ export async function POST(req: Request) {
       );
     }
 
+    let companyStatus = null;
+    if(user.role === 'owner'){
+      const company = await Company.findOne({ ownerId: user._id });
+      companyStatus = company?.status || 'pending';
+    }
     // 3. Tạo Token (JWT)
     const tokenPayload = {
       userId: user._id,
       email: user.email,
       role: user.role,
+      companyStatus,
     };
 
     const token = jwt.sign(tokenPayload, process.env.JWT_SECRET!, {

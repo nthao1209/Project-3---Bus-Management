@@ -10,6 +10,8 @@ export interface Station {
     lat: number;
     lng: number;
   };
+  status?: 'pending' | 'active' | 'rejected';
+  creatorId?: Types.ObjectId;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -26,7 +28,14 @@ const StationSchema = new Schema<Station>({
   coords: {
     lat: Number,
     lng: Number
-  }
+  },
+  status: { 
+    type: String, 
+    enum: ['pending', 'active', 'rejected'], 
+    default: 'pending' 
+  },
+  creatorId: { type: Schema.Types.ObjectId, ref: 'User' },
+
 }, { timestamps: true });
 
 
@@ -90,7 +99,7 @@ const CompanySchema = new Schema<Company>({
 interface SeatLayout {
   totalSeats: number;
   totalFloors: number;
-  schema: any; // Có thể define chi tiết hơn nếu cần: Record<string, any>
+  schema: any; 
 }
 
 export interface Bus {
@@ -346,11 +355,11 @@ const GpsLogSchema = new Schema<GpsLog>({
   expireAfterSeconds: 604800 
 });
 
-// EXPORT MODELS (Next.js Safe)
 
 export const User = mongoose.models.User || mongoose.model<User>('User', UserSchema);
 export const Company = mongoose.models.Company || mongoose.model<Company>('Company', CompanySchema);
 export const Bus = mongoose.models.Bus || mongoose.model<Bus>('Bus', BusSchema);
+export const Station = mongoose.models.Station || mongoose.model<Station>('Station', StationSchema);
 export const Route = mongoose.models.Route || mongoose.model<Route>('Route', RouteSchema);
 export const Trip = mongoose.models.Trip || mongoose.model<Trip>('Trip', TripSchema);
 export const Booking = mongoose.models.Booking || mongoose.model<Booking>('Booking', BookingSchema);

@@ -33,9 +33,7 @@ export async function POST(req: Request) {
       role: 'owner',
       isActive: true,
     });
-
-    // 3. Tạo Company (Trạng thái pending chờ duyệt)
-    // Lưu ý: fleetSize và note mình sẽ gộp vào description để đơn giản hoá DB hiện tại
+    
     const descriptionText = `Quy mô: ${fleetSize}. Ghi chú: ${note}`;
     
     await Company.create({

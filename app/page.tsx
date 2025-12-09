@@ -1,9 +1,8 @@
-import Header from '@/components/Header';
-
+import HeroSearch from "@/components/HeroSearch";
 export default function HomePage() {
   return (
-    <div>
-      
-    </div>
+    <main>
+      <HeroSearch />
+    </main>
   );
 }

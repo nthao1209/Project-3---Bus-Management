@@ -18,6 +18,13 @@ import { useRouter } from 'next/navigation';
 export default function Header() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
+  const isNormalUser = (role?:string)=>role === 'user';
+  const roleLabelMap: Record<string, string> = {
+    owner: 'Chủ nhà xe',
+    driver: 'Tài xế',
+    user: 'Khách hàng',
+  };
+  
   useEffect(() => {
     const storedUser = localStorage.getItem('user_info');
     if (storedUser) {
@@ -43,7 +50,29 @@ export default function Header() {
     }
   };
 
+  const getDashboardLink = () =>{
+    if(!user) return null;
+    switch(user.role){
+      case 'owner':
+        return {
+          key: 'dashboard',
+          label: <Link href="/owner/dashboard">Quản lý nhà xe</Link>,
+          icon: <ShopOutlined />,
+        };
+      case 'driver':
+        return {
+          key: 'dashboard',
+          label: <Link href="/driver/schedule">Lịch chạy của tôi</Link>,
+          icon: <ShopOutlined />,
+        };
+    }
+   };
+
+   const dashboardItem = getDashboardLink();
+
   const mobileMenu: MenuProps['items'] = [
+    ...(isNormalUser(user?.role)
+    ? [
     {
       key: 'my-tickets',
       label: <Link href="/my-tickets">Đơn hàng của tôi</Link>,
@@ -51,10 +80,12 @@ export default function Header() {
     },
     {
       key: 'owner-register',
-      label: <Link href="/owner/register">Mở bán vé trên BusOne</Link>,
+      label: <Link href="/auth/owner-register">Mở bán vé trên BusOne</Link>,
       icon: <ShopOutlined />,
     },
   ]
+  :[]),
+  ];
 
   const userMenu: MenuProps['items'] = [
     {
@@ -62,22 +93,28 @@ export default function Header() {
       label: (
         <div className="flex flex-col">
            <span className="font-bold text-blue-700">{user?.name}</span>
-           <span className="text-xs text-gray-500">{user?.role === 'admin' ? 'Quản trị viên' : 'Khách hàng'}</span>
+           <span className="text-xs text-gray-500">{roleLabelMap[user?.role]||''}</span>
         </div>
       ),
       icon: <UserOutlined />,
     },
-    { type: 'divider' },
+    { type: 'divider' }, //ạo đường kẻ phân cách giữa các mục trong Menu / Dropdown
     {
       key: '2',
       label: <Link href="/auth/profile">Thông tin tài khoản</Link>,
       icon: <ProfileOutlined />,
     },
-    {
-      key: '3',
-      label: <Link href="/my-tickets">Vé của tôi</Link>,
-      icon: <HistoryOutlined />,
-    },
+    { type: 'divider' },
+
+      ...(isNormalUser(user?.role)
+    ? [
+        {
+          key: 'my-tickets',
+          label: <Link href="/my-tickets">Vé của tôi</Link>,
+          icon: <HistoryOutlined />,
+        },
+      ]
+    : []),
     { type: 'divider' },
     {
       key: '4',
@@ -113,10 +150,26 @@ export default function Header() {
         </div>
 
         <div className="flex items-center gap-4 md:gap-6 text-[14px] font-medium">
-          <Link href="/my-tickets" className="hidden md:block hover:text-yellow-200 transition">Đơn hàng của tôi</Link>
-          <Link href="/owner/register" className="hidden lg:block hover:text-yellow-200 transition font-semibold"> Mở bán vé trên BusOne </Link>
+          {isNormalUser(user?.role) && (
+            <>
+              <Link
+                href="/my-tickets"
+                className="hidden md:block hover:text-yellow-200 transition"
+              >
+                Đơn hàng của tôi
+              </Link>
+
+              <Link
+                href="/owner/register"
+                className="hidden lg:block hover:text-yellow-200 transition font-semibold"
+              >
+                Mở bán vé trên BusOne
+              </Link>
+            </>
+          )}
+
           <div className="lg:hidden flex items-center">
-            <Dropdown menu={{ items: mobileMenu }} trigger={['click']} placement="bottomRight" arrow>
+            <Dropdown menu={{ items: mobileMenu }} trigger={['hover']} placement="bottomRight" arrow>
               <Button 
                 type="text" 
                 icon={<MenuOutlined className="text-white text-xl" />} 
@@ -125,7 +178,7 @@ export default function Header() {
             </Dropdown>
           </div>
           {user ? (
-            <Dropdown menu={{ items: userMenu }} placement="bottomRight" arrow trigger={['click']}>
+            <Dropdown menu={{ items: userMenu }} placement="bottomRight" arrow trigger={['hover']}>
               <div className="flex items-center gap-2 cursor-pointer hover:bg-blue-600 p-1.5 rounded-full transition select-none">
                 <Tooltip title={user.name}>
                   <Avatar 
