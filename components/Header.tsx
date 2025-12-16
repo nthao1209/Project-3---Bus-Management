@@ -1,201 +1,204 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Button, Dropdown, Avatar, MenuProps, message,Tooltip,Image } from 'antd';
 import {
-  PhoneFilled,
+  Button,
+  Dropdown,
+  Avatar,
+  MenuProps,
+  message,
+  Tooltip,
+  Image,
+} from 'antd';
+import {
   QuestionCircleOutlined,
   UserOutlined,
   LogoutOutlined,
   ProfileOutlined,
   HistoryOutlined,
   ShopOutlined,
-  MenuOutlined
+  MenuOutlined,
+  DashboardOutlined,
 } from '@ant-design/icons';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
+/* ================= TYPES ================= */
+type Role = 'user' | 'owner' | 'driver' | 'admin';
+
+interface UserInfo {
+  userId: string;
+  email: string;
+  name: string;
+  role: Role;
+}
+
+/* ================= ROLE LABEL ================= */
+const roleLabelMap: Record<Role, string> = {
+  user: 'Khách hàng',
+  owner: 'Chủ nhà xe',
+  driver: 'Tài xế',
+  admin: 'Quản trị viên',
+};
+
+/* ================= UI CONFIG ================= */
+const roleUI = {
+  user: {
+    showMyTickets: true,
+    showProfile: true,
+    showOwnerRegister: true,
+    dashboard: null,
+  },
+  owner: {
+    showMyTickets: false,
+    showProfile: true,
+    showOwnerRegister: false,
+  },
+  driver: {
+    showMyTickets: false,
+    showProfile: false,
+    showOwnerRegister: false,
+  },
+  admin: {
+    showMyTickets: false,
+    showProfile: false,
+    showOwnerRegister: false,
+  },
+};
+
 export default function Header() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const isNormalUser = (role?:string)=>role === 'user';
-  const roleLabelMap: Record<string, string> = {
-    owner: 'Chủ nhà xe',
-    driver: 'Tài xế',
-    user: 'Khách hàng',
-  };
-  
+  const [user, setUser] = useState<UserInfo | null>(null);
+
+  const currentUI = user ? roleUI[user.role] : null;
+
   useEffect(() => {
-    const storedUser = localStorage.getItem('user_info');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
+    const loadUser = async () => {
+      try {
+        const res = await fetch('/api/auth/me', {
+          credentials: 'include',
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setUser(data);
+      } catch {
+        setUser(null);
+      }
+    };
+    loadUser();
   }, []);
 
+  /* ================= LOGOUT ================= */
   const handleLogout = async () => {
     try {
-      const res = await fetch('/api/auth/logout', {
-        method: 'POST',
-      });
-      if (!res.ok) {
-        throw new Error('Đăng xuất thất bại');
-      }
-      localStorage.removeItem('user_info');
+      await fetch('/api/auth/logout', { method: 'POST' });
       setUser(null);
-      message.success('Đã đăng xuất thành công');
+      message.success('Đã đăng xuất');
       router.push('/auth/login');
-    } catch (error) {
-      console.error(error);
-      message.error('Có lỗi xảy ra khi đăng xuất');
+    } catch {
+      message.error('Đăng xuất thất bại');
     }
   };
 
-  const getDashboardLink = () =>{
-    if(!user) return null;
-    switch(user.role){
-      case 'owner':
-        return {
-          key: 'dashboard',
-          label: <Link href="/owner/dashboard">Quản lý nhà xe</Link>,
-          icon: <ShopOutlined />,
-        };
-      case 'driver':
-        return {
-          key: 'dashboard',
-          label: <Link href="/driver/schedule">Lịch chạy của tôi</Link>,
-          icon: <ShopOutlined />,
-        };
-    }
-   };
-
-   const dashboardItem = getDashboardLink();
-
-  const mobileMenu: MenuProps['items'] = [
-    ...(isNormalUser(user?.role)
-    ? [
-    {
-      key: 'my-tickets',
-      label: <Link href="/my-tickets">Đơn hàng của tôi</Link>,
-      icon: <HistoryOutlined />,
-    },
-    {
-      key: 'owner-register',
-      label: <Link href="/auth/owner-register">Mở bán vé trên BusOne</Link>,
-      icon: <ShopOutlined />,
-    },
-  ]
-  :[]),
-  ];
-
+  /* ================= USER MENU ================= */
   const userMenu: MenuProps['items'] = [
-    {
-      key: '1',
-      label: (
-        <div className="flex flex-col">
-           <span className="font-bold text-blue-700">{user?.name}</span>
-           <span className="text-xs text-gray-500">{roleLabelMap[user?.role]||''}</span>
-        </div>
-      ),
-      icon: <UserOutlined />,
-    },
-    { type: 'divider' }, //ạo đường kẻ phân cách giữa các mục trong Menu / Dropdown
-    {
-      key: '2',
-      label: <Link href="/auth/profile">Thông tin tài khoản</Link>,
-      icon: <ProfileOutlined />,
-    },
-    { type: 'divider' },
+  {
+    key: 'info',
+    label: (
+      <div className="flex flex-col">
+        <span className="font-bold text-blue-700">{user?.name}</span>
+        <span className="text-xs text-gray-500">
+          {user && roleLabelMap[user.role]}
+        </span>
+      </div>
+    ),
+    icon: <UserOutlined />,
+  },
+  { type: 'divider' as const },
 
-      ...(isNormalUser(user?.role)
+  ...(currentUI?.showProfile
     ? [
         {
-          key: 'my-tickets',
-          label: <Link href="/my-tickets">Vé của tôi</Link>,
-          icon: <HistoryOutlined />,
+          key: 'profile',
+          label: <Link href="/auth/profile">Thông tin tài khoản</Link>,
+          icon: <ProfileOutlined />,
         },
+        { type: 'divider' as const },
       ]
     : []),
-    { type: 'divider' },
-    {
-      key: '4',
-      label: <span onClick={handleLogout}>Đăng xuất</span>,
-      icon: <LogoutOutlined />,
-      danger: true, 
-    },
+
+  {
+    key: 'logout',
+    label: <span onClick={handleLogout}>Đăng xuất</span>,
+    icon: <LogoutOutlined />,
+    danger: true,
+  },
+];
+
+
+  /* ================= MOBILE MENU ================= */
+  const mobileMenu: MenuProps['items'] = [
+
+    ...(currentUI?.showMyTickets
+      ? [
+          {
+            key: 'my-tickets',
+            label: <Link href="/my-tickets">Đơn hàng của tôi</Link>,
+            icon: <HistoryOutlined />,
+          },
+        ]
+      : []),
   ];
 
+  /* ================= RENDER ================= */
   return (
-    <header className="w-full bg-[#2474E5] text-white font-sans shadow-md sticky top-0 z-50">
+    <header className="w-full bg-[#2474E5] text-white sticky top-0 z-50 shadow-md">
       <div className="container mx-auto px-4 h-[60px] flex items-center justify-between">
-        
-        <div className="flex items-center gap-4">
-          <Link href="/">
-          <span className="flex items-center gap-2 group">
-            <Image
-              src="/Logo.png"
-              alt="Logo"
-              height={42}
-              preview={false}
-              style={{ objectFit: "contain", width: "auto" }}
-            />
-          </span>
+        {/* LOGO */}
+        <Link href="/">
+          <Image src="/Logo.png" alt="Logo" height={42} preview={false} />
         </Link>
 
-
-          <div className="hidden lg:flex items-center text-[13px] font-medium opacity-90">
-            <div className="h-6 w-[1px] bg-white/30 mx-3"></div>
-            <span>Cam kết hoàn 150% nếu nhà xe không cung cấp dịch vụ (*)</span>
-            <QuestionCircleOutlined className="ml-1 cursor-pointer hover:opacity-80" />
-          </div>
+        {/* TEXT */}
+        <div className="hidden lg:flex items-center text-[13px] opacity-90">
+          <span>Cam kết hoàn 150% nếu nhà xe không cung cấp dịch vụ (*)</span>
+          <QuestionCircleOutlined className="ml-2 cursor-pointer" />
         </div>
 
-        <div className="flex items-center gap-4 md:gap-6 text-[14px] font-medium">
-          {isNormalUser(user?.role) && (
-            <>
-              <Link
-                href="/my-tickets"
-                className="hidden md:block hover:text-yellow-200 transition"
-              >
-                Đơn hàng của tôi
-              </Link>
-
-              <Link
-                href="/owner/register"
-                className="hidden lg:block hover:text-yellow-200 transition font-semibold"
-              >
-                Mở bán vé trên BusOne
-              </Link>
-            </>
+        {/* RIGHT */}
+        <div className="flex items-center gap-4">
+          {currentUI?.showMyTickets && (
+            <Link href="/my-tickets" className="hidden md:block">
+              Đơn hàng của tôi
+            </Link>
           )}
 
-          <div className="lg:hidden flex items-center">
-            <Dropdown menu={{ items: mobileMenu }} trigger={['hover']} placement="bottomRight" arrow>
-              <Button 
-                type="text" 
-                icon={<MenuOutlined className="text-white text-xl" />} 
-                className="flex items-center justify-center !text-white hover:!bg-white/20"
-              />
-            </Dropdown>
-          </div>
+          {currentUI?.showOwnerRegister && (
+            <Link href="/auth/owner-register" className="hidden lg:block font-semibold">
+              Mở bán vé trên BusOne
+            </Link>
+          )}
+
+          <Dropdown
+            menu={{ items: mobileMenu }}
+            placement="bottomRight"
+          >
+            <Button type="text" icon={<MenuOutlined />} className="lg:hidden" />
+          </Dropdown>
+
           {user ? (
-            <Dropdown menu={{ items: userMenu }} placement="bottomRight" arrow trigger={['hover']}>
-              <div className="flex items-center gap-2 cursor-pointer hover:bg-blue-600 p-1.5 rounded-full transition select-none">
-                <Tooltip title={user.name}>
-                  <Avatar 
-                    className="bg-yellow-400 text-blue-700 font-bold cursor-pointer" >
-                          {user.name?.charAt(0).toUpperCase()}
-                  </Avatar>
-                </Tooltip>
-              </div>
+            <Dropdown menu={{ items: userMenu }} placement="bottomRight">
+              <Avatar className="bg-yellow-400 text-blue-700 font-bold cursor-pointer">
+                {user.email.charAt(0).toUpperCase()}
+              </Avatar>
             </Dropdown>
           ) : (
             <Link href="/auth/login">
-              <Button type="default" className="!bg-white !text-[#2474E5] !border-none !font-bold hover:!bg-gray-100 shadow-sm">
+              <Button className="!bg-white !text-[#2474E5] font-bold">
                 Đăng nhập
               </Button>
             </Link>
           )}
-
         </div>
       </div>
     </header>

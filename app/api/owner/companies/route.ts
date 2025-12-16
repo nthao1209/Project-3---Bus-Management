@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 import { dbConnect } from '@/lib/dbConnect';
 import { Company, User } from '@/models/models';
-import { getCurrentUserId } from '@/lib/auth'; // Import hàm của bạn
+import { getCurrentUser} from '@/lib/auth'; // Import hàm của bạn
 
 export async function GET(req: Request) {
   try {
     await dbConnect();
     
     // 1. Lấy thông tin user từ token
-    const session = await getCurrentUserId();
+    const session = await getCurrentUser();
     
     // 2. Kiểm tra đăng nhập
     if (!session) {
@@ -27,14 +27,16 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     await dbConnect();
-    const session = await getCurrentUserId();
+    const session = await getCurrentUser();
 
     if (!session) {
       return NextResponse.json({ message: 'Chưa xác thực người dùng' }, { status: 401 });
     }
 
     const body = await req.json();
-    const { name, description, hotline, email, address, logo } = body;
+    console.log('CREATE COMPANY BODY:', body);
+
+    const { name, description, hotline, email, address } = body;
 
     if (!name || !hotline) return NextResponse.json({ message: 'Tên và hotline bắt buộc' }, { status: 400 });
 
@@ -45,7 +47,6 @@ export async function POST(req: Request) {
       hotline,
       email,
       address,
-      logo,
       status: 'pending'
     });
 

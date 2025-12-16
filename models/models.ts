@@ -48,6 +48,7 @@ export interface User {
   role: 'user' | 'driver' | 'owner' | 'admin';
   driverLicense?: string;
   isActive: boolean;
+  companyId?: Types.ObjectId;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -63,7 +64,8 @@ const UserSchema = new Schema<User>({
     default: 'user' 
   },
   driverLicense: { type: String },
-  isActive: { type: Boolean, default: true }
+  isActive: { type: Boolean, default: true },
+  companyId: { type: Schema.Types.ObjectId, ref: 'Company' },
 }, { timestamps: true });
 
 
@@ -74,7 +76,6 @@ export interface Company {
   hotline: string;
   email?: string;
   address?: string;
-  logo?: string;
   status: 'active' | 'inactive' | 'pending';
   createdAt?: Date;
   updatedAt?: Date;
@@ -87,7 +88,6 @@ const CompanySchema = new Schema<Company>({
   hotline: { type: String, required: true },
   email: { type: String },
   address: { type: String },
-  logo: { type: String },
   status: { 
     type: String, 
     enum: ['active', 'inactive', 'pending'], 
@@ -216,6 +216,38 @@ const TripSchema = new Schema<Trip>({
 }, { timestamps: true });
 
 TripSchema.index({ routeId: 1, departureTime: 1 });
+
+// Mẫu lịch trình cố định
+export interface TripTemplate {
+  companyId: Types.ObjectId;
+  routeId: Types.ObjectId;
+  busId: Types.ObjectId;
+  driverId?: Types.ObjectId;
+  
+  departureTimeStr: string; // Lưu giờ dạng chuỗi "07:30"
+  durationMinutes: number;  // Thời gian chạy (phút)
+  
+  daysOfWeek: number[]; // [0, 1, 2, 3, 4, 5, 6] (0 là Chủ nhật). Nếu rỗng là chạy hàng ngày.
+  
+  basePrice: number;
+  active: boolean; // Bật/Tắt lịch này
+  createdAt?: Date;
+}
+
+const TripTemplateSchema = new Schema<TripTemplate>({
+  companyId: { type: Schema.Types.ObjectId, ref: 'Company', required: true },
+  routeId: { type: Schema.Types.ObjectId, ref: 'Route', required: true },
+  busId: { type: Schema.Types.ObjectId, ref: 'Bus', required: true },
+  driverId: { type: Schema.Types.ObjectId, ref: 'User' },
+  
+  departureTimeStr: { type: String, required: true }, // VD: "08:00"
+  durationMinutes: { type: Number, required: true },
+  
+  daysOfWeek: [{ type: Number }], // Mảng các ngày trong tuần xe chạy
+  
+  basePrice: { type: Number, required: true },
+  active: { type: Boolean, default: true }
+}, { timestamps: true });
 
 
 interface CustomerInfo {
@@ -366,3 +398,4 @@ export const Booking = mongoose.models.Booking || mongoose.model<Booking>('Booki
 export const Payment = mongoose.models.Payment || mongoose.model<Payment>('Payment', PaymentSchema);
 export const Notification = mongoose.models.Notification || mongoose.model<Notification>('Notification', NotificationSchema);
 export const GpsLog = mongoose.models.GpsLog || mongoose.model<GpsLog>('GpsLog', GpsLogSchema);
+export const TripTemplate = mongoose.models.TripTemplate || mongoose.model<TripTemplate>('TripTemplate', TripTemplateSchema);

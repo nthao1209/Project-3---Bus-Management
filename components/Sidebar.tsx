@@ -13,10 +13,13 @@ import {
   CompassOutlined,
   ScheduleOutlined,
   TeamOutlined,
-  FileTextOutlined
+  FileTextOutlined,
+  CalendarOutlined
 } from '@ant-design/icons';
 
 const { Sider } = Layout;
+
+type Role = 'admin' | 'owner' | 'driver' | 'user';
 
 type MenuItem = Required<MenuProps>['items'][number];
 
@@ -24,9 +27,8 @@ function getItem(
   label: React.ReactNode,
   key: React.Key,
   icon?: React.ReactNode,
-  children?: MenuItem[],
 ): MenuItem {
-  return { key, icon, children, label } as MenuItem;
+  return { key, icon, label } as MenuItem;
 }
 
 interface SidebarProps {
@@ -34,128 +36,159 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
-  const pathname = usePathname(); // Thay thế useLocation
-  const [userRole, setUserRole] = useState<string>('');
+  const pathname = usePathname();
+  const [role, setRole] = useState<Role | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Lấy Role từ LocalStorage (Client-side only)
+  // ✅ LẤY ROLE TỪ COOKIE → /api/auth/me
   useEffect(() => {
-    const storedUser = localStorage.getItem('user_info');
-    if (storedUser) {
-      const parsedUser = JSON.parse(storedUser);
-      setUserRole(parsedUser.role || 'user');
-    }
-    setLoading(false);
+    const fetchMe = async () => {
+      try {
+        const res = await fetch('/api/auth/me', {
+          credentials: 'include',
+        });
+
+        if (!res.ok) {
+          setRole(null);
+          return;
+        }
+
+        const data = await res.json();
+        setRole(data.role);
+      } catch {
+        setRole(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMe();
   }, []);
 
-  // Cấu hình Menu dựa trên nghiệp vụ Bus Management
+  // ✅ MENU CONFIG THEO ROLE
   const menuConfig = [
-    // --- KHU VỰC CHUNG ---
-    { 
-      path: userRole === 'admin' ? '/admin/dashboard' : '/owner/dashboard', 
-      label: 'Tổng quan', 
-      icon: <DashboardOutlined />, 
-      roles: ['admin', 'owner'] 
-    },
-
-    // --- DÀNH CHO ADMIN HỆ THỐNG ---
-    { 
-      path: '/admin/companies', 
-      label: 'Quản lý Nhà xe', 
-      icon: <ShopOutlined />, 
-      roles: ['admin'] // Chỉ Admin được duyệt nhà xe
-    },
-    { 
-      path: '/admin/users', 
-      label: 'Người dùng', 
-      icon: <UserOutlined />, 
-      roles: ['admin'] 
+    // ADMIN
+    {
+      path: '/admin/dashboard',
+      label: 'Tổng quan',
+      icon: <DashboardOutlined />,
+      roles: ['admin'],
     },
     {
-      path: '/admin/stations', 
-      label: 'Quản lý bến xe', 
-      icon: <CarOutlined />, 
-      roles: ['admin'] 
+      path: '/admin/companies',
+      label: 'Quản lý Nhà xe',
+      icon: <ShopOutlined />,
+      roles: ['admin'],
+    },
+    {
+      path: '/admin/users',
+      label: 'Người dùng',
+      icon: <UserOutlined />,
+      roles: ['admin'],
+    },
+    {
+      path: '/admin/stations',
+      label: 'Quản lý bến xe',
+      icon: <CarOutlined />,
+      roles: ['admin'],
     },
 
-    // --- DÀNH CHO OWNER (CHỦ NHÀ XE) ---
-    { 
-      path: '/owner/buses', 
-      label: 'Quản lý Xe', 
-      icon: <CarOutlined />, 
-      roles: ['owner'] 
+    // OWNER
+    {
+      path: '/owner/dashboard',
+      label: 'Tổng quan',
+      icon: <DashboardOutlined />,
+      roles: ['owner'],
+    },
+    {
+      path: '/owner/companies',
+      label: 'Quản lý nhà xe',
+      icon: <CarOutlined />,
+      roles: ['owner'],
+    },
+     {
+      path: '/owner/buses',
+      label: 'Quản lý Xe',
+      icon: <CarOutlined />,
+      roles: ['owner'],
+    },
+    {
+      path: '/owner/routes',
+      label: 'Quản lý tuyến đường ',
+      icon: <CompassOutlined />,
+      roles: ['owner'],
     },
     { 
-      path: '/owner/routes', 
-      label: 'Tuyến đường', 
-      icon: <CompassOutlined />, 
+      path: '/owner/trip-templates', 
+      label: 'Cấu hình Lịch biểu', 
+      icon: <CalendarOutlined />, 
       roles: ['owner'] 
     },
-    { 
-      path: '/owner/trips', 
-      label: 'Lịch chạy (Chuyến)', 
-      icon: <ScheduleOutlined />, 
-      roles: ['owner'] 
+    {
+      path: '/owner/trips',
+      label: 'Lịch chạy',
+      icon: <ScheduleOutlined />,
+      roles: ['owner'],
     },
-    { 
-      path: '/owner/drivers', 
-      label: 'Tài xế & Phụ xe', 
-      icon: <TeamOutlined />, 
-      roles: ['owner'] 
+    {
+      path: '/owner/drivers',
+      label: ' Quản lý tài xế ',
+      icon: <TeamOutlined />,
+      roles: ['owner'],
     },
-    { 
-      path: '/owner/bookings', 
-      label: 'Quản lý Vé đặt', 
-      icon: <FileTextOutlined />, 
-      roles: ['owner'] 
+    {
+      path: '/owner/bookings',
+      label: 'Vé đặt',
+      icon: <FileTextOutlined />,
+      roles: ['owner'],
     },
   ];
 
   const items: MenuItem[] = useMemo(() => {
+    if (!role) return [];
+
     return menuConfig
-      .filter(item => item.roles.includes(userRole))
-      .map(item => getItem(
-        <Link href={item.path}>{item.label}</Link>, 
-        item.path, 
-        item.icon
-      ));
-  }, [userRole]);
+      .filter(item => item.roles.includes(role))
+      .map(item =>
+        getItem(
+          <Link href={item.path}>{item.label}</Link>,
+          item.path,
+          item.icon
+        )
+      );
+  }, [role]);
 
   if (loading) {
     return (
-      <Sider trigger={null} collapsible collapsed={collapsed} theme="dark">
+      <Sider collapsed={collapsed} theme="dark">
         <div className="p-4">
-            <Skeleton active paragraph={{ rows: 6 }} title={false} />
+          <Skeleton active paragraph={{ rows: 6 }} title={false} />
         </div>
       </Sider>
     );
   }
 
   return (
-    <Sider 
-        trigger={null} 
-        collapsible 
-        collapsed={collapsed} 
-        theme="dark"
-        width={250}
-        className="min-h-screen overflow-auto"
+    <Sider
+      collapsible
+      collapsed={collapsed}
+      trigger={null}
+      theme="dark"
+      width={250}
+      className="min-h-screen overflow-auto"
     >
-      {/* Logo Area */}
+      {/* LOGO */}
       <div className="h-16 flex items-center justify-center bg-black/20 m-2 rounded-lg">
-         {collapsed ? (
-            <span className="text-white font-bold text-xl">B1</span>
-         ) : (
-            <span className="text-white font-bold text-xl">BusOne Admin</span>
-         )}
+        <span className="text-white font-bold text-xl">
+          {collapsed ? 'B1' : 'BusOne'}
+        </span>
       </div>
 
       <Menu
         theme="dark"
         mode="inline"
-        selectedKeys={[pathname]} 
-        defaultOpenKeys={['/']}
+        selectedKeys={[pathname]}
         items={items}
-        style={{ borderRight: 0 }}
       />
     </Sider>
   );

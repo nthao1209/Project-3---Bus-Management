@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { dbConnect } from '@/lib/dbConnect';
 import { Bus, Company } from '@/models/models';
-import { getCurrentUserId } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth';
 
 // Định nghĩa type cho Next.js 15
 type RouteParams = {
@@ -13,7 +13,7 @@ export async function GET(req: Request, { params }: RouteParams) {
   try {
     await dbConnect();
     const { id } = await params; // Await params
-    const session = await getCurrentUserId();
+    const session = await getCurrentUser();
     if (!session) return NextResponse.json({ message: 'Chưa xác thực' }, { status: 401 });
 
     const bus = await Bus.findById(id);
@@ -34,7 +34,7 @@ export async function PUT(req: Request, { params }: RouteParams) {
   try {
     await dbConnect();
     const { id } = await params; // Await params
-    const session = await getCurrentUserId();
+    const session = await getCurrentUser();
     if (!session) return NextResponse.json({ message: 'Chưa xác thực' }, { status: 401 });
 
     const body = await req.json();
@@ -65,7 +65,7 @@ export async function DELETE(req: Request, { params }: RouteParams) {
   try {
     await dbConnect();
     const { id } = await params; // Await params
-    const session = await getCurrentUserId();
+    const session = await getCurrentUser();
     if (!session) return NextResponse.json({ message: 'Chưa xác thực' }, { status: 401 });
 
     const bus = await Bus.findById(id);

@@ -7,23 +7,34 @@ export async function POST(req: Request) {
   try {
     await dbConnect();
     const body = await req.json();
+    
     const { 
-      fullName, phone, email, password, // Thông tin User
-      companyName, province, fleetSize, note // Thông tin Nhà xe
+      fullName,       
+      email,          
+      phone,          
+      password,       
+      companyName,    
+      address,       
+      description 
     } = body;
+
+    // Validate cơ bản
+    if (!password || !email || !phone) {
+       return NextResponse.json({ message: 'Thiếu thông tin bắt buộc (Email, SĐT, Mật khẩu)' }, { status: 400 });
+    }
 
     // 1. Kiểm tra Email hoặc SĐT đã tồn tại chưa
     const existingUser = await User.findOne({ $or: [{ email }, { phone }] });
     if (existingUser) {
       return NextResponse.json(
-        { message: 'Email hoặc Số điện thoại đã được đăng ký' },
+        { message: 'Email hoặc Số điện thoại đã được đăng ký trên hệ thống' },
         { status: 400 }
       );
     }
 
     // 2. Tạo User (Role = owner)
     const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    const hashedPassword = await bcrypt.hash(password, salt); // Bây giờ password đã có dữ liệu
 
     const newUser = await User.create({
       name: fullName,
@@ -34,14 +45,14 @@ export async function POST(req: Request) {
       isActive: true,
     });
     
-    const descriptionText = `Quy mô: ${fleetSize}. Ghi chú: ${note}`;
-    
+    // 3. Tạo Company
     await Company.create({
       ownerId: newUser._id,
       name: companyName,
-      address: province, // Tạm lưu tỉnh vào address
-      hotline: phone,    // Lấy SĐT cá nhân làm hotline tạm
-      description: descriptionText,
+      address: address, // Lưu chuỗi địa chỉ đầy đủ
+      hotline: phone,   // Lấy SĐT cá nhân làm hotline mặc định
+      email: email,     // Lấy email cá nhân làm email cty mặc định
+      description: description,
       status: 'pending'
     });
 

@@ -1,21 +1,17 @@
 import { NextResponse } from 'next/server';
 import { dbConnect } from '@/lib/dbConnect';
 import { Company, User } from '@/models/models';
-import { getCurrentUserId } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth';
 
-// ------------------------------------------------------------------
-// 1. GET: Xem chi tiết 1 nhà xe theo ID
-// (Đây là hàm bạn đang thiếu dẫn đến lỗi 404 khi gọi link có ID)
-// ------------------------------------------------------------------
+
 export async function GET(req: Request, { params }: { params: { id: string } }) {
   try {
     await dbConnect();
-    const session = await getCurrentUserId();
+    const session = await getCurrentUser();
     if (!session) return NextResponse.json({ message: 'Chưa xác thực' }, { status: 401 });
 
     const { id } = await params;
     
-    // Tìm nhà xe với ID này VÀ phải thuộc sở hữu của user đang đăng nhập
     const company = await Company.findOne({ _id: id, ownerId: session.userId });
 
     if (!company) {
@@ -29,13 +25,11 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   }
 }
 
-// ------------------------------------------------------------------
-// 2. PUT: Cập nhật nhà xe theo ID
-// ------------------------------------------------------------------
+
 export async function PUT(req: Request, { params }: { params: { id: string } }) {
   try {
     await dbConnect();
-    const session = await getCurrentUserId();
+    const session = await getCurrentUser();
     if (!session) return NextResponse.json({ message: 'Chưa xác thực' }, { status: 401 });
 
     const { id } = await params;
@@ -57,13 +51,11 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   }
 }
 
-// ------------------------------------------------------------------
-// 3. DELETE: Xóa nhà xe theo ID
-// ------------------------------------------------------------------
+
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   try {
     await dbConnect();
-    const session = await getCurrentUserId();
+    const session = await getCurrentUser();
     if (!session) return NextResponse.json({ message: 'Chưa xác thực' }, { status: 401 });
 
     const { id } = await params;

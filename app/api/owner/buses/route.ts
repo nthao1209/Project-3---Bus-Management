@@ -27,7 +27,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     await dbConnect();
-    const session = await getCurrentUserId();
+    const session = await getCurrentUser();
     if (!session) return NextResponse.json({ message: 'Chưa xác thực' }, { status: 401 });
 
     const body = await req.json();

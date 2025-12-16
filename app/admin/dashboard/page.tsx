@@ -69,7 +69,7 @@ export default function AdminDashboard() {
       {/* 1. THỐNG KÊ TỔNG QUAN */}
       <Row gutter={[16, 16]} className="mb-6">
         <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} className="shadow-sm hover:shadow-md transition">
+          <Card variant="borderless" className="shadow-sm hover:shadow-md transition">
             <Statistic
               title="Tổng Doanh Thu"
               value={stats?.totalRevenue || 0}
@@ -81,14 +81,14 @@ export default function AdminDashboard() {
           </Card>
         </Col>
         <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} className="shadow-sm hover:shadow-md transition">
+          <Card  variant="borderless" className="shadow-sm hover:shadow-md transition">
             <Statistic
               title="Người dùng hệ thống"
               value={stats?.totalUsers || 0}
               valueStyle={{ color: '#1890ff', fontWeight: 'bold' }}
               prefix={<UserOutlined />}
             />
-          </Card>
+          </Card>   
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <Card bordered={false} className="shadow-sm hover:shadow-md transition">

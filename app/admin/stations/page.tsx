@@ -1,25 +1,28 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { 
-  Button, Modal, Form, Input, Select, Tabs, Tag, message, Space, Popconfirm 
+import {
+  Button, Tabs, Tag, message, Space, Popconfirm
 } from 'antd';
-import { 
-  PlusOutlined, EditOutlined, DeleteOutlined, 
-  CheckCircleOutlined, CloseCircleOutlined, CompassOutlined 
+import {
+  PlusOutlined, EditOutlined, DeleteOutlined,
+  CheckCircleOutlined, CloseCircleOutlined
 } from '@ant-design/icons';
+
 import DataTable from '@/components/DataTable';
-import provincesData from '@/public/provinces.json'
+import StationModal from '@/components/StationModal';
 
 export default function StationPage() {
   const [activeStations, setActiveStations] = useState<any[]>([]);
   const [pendingStations, setPendingStations] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
-  const [form] = Form.useForm();
-  const [provinces, setProvinces] = useState<{label: string, value: string}[]>([]);
 
+  const [provinces, setProvinces] = useState<{ label: string; value: string }[]>([]);
+
+  /* ================= FETCH DATA ================= */
   const fetchStations = async () => {
     setLoading(true);
     try {
@@ -33,36 +36,36 @@ export default function StationPage() {
 
       if (dataActive.success) setActiveStations(dataActive.data);
       if (dataPending.success) setPendingStations(dataPending.data);
-
-    } catch (error) {
+    } catch {
       message.error('Lỗi tải dữ liệu');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { 
-    setProvinces(provincesData);
-    fetchStations(); }, []);
+  useEffect(() => {
+    fetchStations();
+  }, []);
 
+  /* ================= CRUD ================= */
   const handleSubmit = async (values: any) => {
     try {
-      const url = editingItem 
-        ? `/api/admin/stations/${editingItem._id}` 
+      const url = editingItem
+        ? `/api/admin/stations/${editingItem._id}`
         : '/api/admin/stations';
+
       const method = editingItem ? 'PUT' : 'POST';
 
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values)
+        body: JSON.stringify(values),
       });
 
       if (res.ok) {
         message.success(editingItem ? 'Cập nhật thành công' : 'Thêm mới thành công');
         setIsModalOpen(false);
         setEditingItem(null);
-        form.resetFields();
         fetchStations();
       } else {
         message.error('Có lỗi xảy ra');
@@ -72,18 +75,21 @@ export default function StationPage() {
     }
   };
 
-  const handleApprove = async (id: string, action: 'active' | 'rejected') => {
+  const handleApprove = async (id: string, status: 'active' | 'rejected') => {
     try {
       const res = await fetch(`/api/admin/stations/${id}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: action })
+        body: JSON.stringify({ status }),
       });
+
       if (res.ok) {
-        message.success(`Đã ${action === 'active' ? 'duyệt' : 'từ chối'} bến xe`);
+        message.success(status === 'active' ? 'Đã duyệt bến xe' : 'Đã từ chối');
         fetchStations();
       }
-    } catch { message.error('Lỗi kết nối'); }
+    } catch {
+      message.error('Lỗi kết nối');
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -100,34 +106,66 @@ export default function StationPage() {
     }
   };
 
-  const openEdit = (record: any) => {
-    setEditingItem(record);
-    form.setFieldsValue(record);
+  /* ================= UI HANDLER ================= */
+  const openCreate = () => {
+    setEditingItem(null);
     setIsModalOpen(true);
   };
 
+  const openEdit = (record: any) => {
+    setEditingItem(record);
+    setIsModalOpen(true);
+  };
+
+  /* ================= TABLE COLUMNS ================= */
   const columnsActive = [
-    { title: 'Tên bến xe', dataIndex: 'name', key: 'name', render: (t:string) => <b>{t}</b> },
-    { title: 'Tỉnh/Thành', dataIndex: 'province', key: 'province', filters: provinces.map(p => ({ text: p.label, value: p.value })), onFilter: (value: any, record: any) => record.province === value },
+    {
+      title: 'Tên bến xe',
+      dataIndex: 'name',
+      key: 'name',
+      render: (t: string) => <b>{t}</b>,
+    },
+    {
+      title: 'Tỉnh/Thành',
+      dataIndex: 'province',
+      key: 'province',
+      filters: provinces.map(p => ({ text: p.label, value: p.value })),
+      onFilter: (value: any, record: any) => record.province === value,
+    },
     { title: 'Địa chỉ', dataIndex: 'address', key: 'address' },
-    { title: 'Loại', dataIndex: 'type', key: 'type', render: (t:string) => <Tag color="blue">{t}</Tag> },
+    {
+      title: 'Loại',
+      dataIndex: 'type',
+      key: 'type',
+      render: (t: string) => <Tag color="blue">{t}</Tag>,
+    },
     {
       title: 'Hành động',
       key: 'action',
       render: (_: any, r: any) => (
         <Space>
-          <Button icon={<EditOutlined />} size="small" onClick={() => openEdit(r)}/>
+          <Button size="small" icon={<EditOutlined />} onClick={() => openEdit(r)} />
           <Popconfirm title="Xóa bến xe này?" onConfirm={() => handleDelete(r._id)}>
-            <Button danger icon={<DeleteOutlined />} size="small"/>
+            <Button danger size="small" icon={<DeleteOutlined />} />
           </Popconfirm>
         </Space>
-      )
-    }
+      ),
+    },
   ];
 
   const columnsPending = [
-    { title: 'Tên đề xuất', dataIndex: 'name', key: 'name', render: (t:string) => <b>{t}</b> },
-    { title: 'Người đề xuất', dataIndex: 'creatorId', key: 'creatorId', render: (u: any) => u?.name || 'Ẩn danh' },
+    {
+      title: 'Tên đề xuất',
+      dataIndex: 'name',
+      key: 'name',
+      render: (t: string) => <b>{t}</b>,
+    },
+    {
+      title: 'Người đề xuất',
+      dataIndex: 'creatorId',
+      key: 'creatorId',
+      render: (u: any) => u?.name || 'Ẩn danh',
+    },
     { title: 'Tỉnh/Thành', dataIndex: 'province', key: 'province' },
     { title: 'Địa chỉ', dataIndex: 'address', key: 'address' },
     {
@@ -135,18 +173,29 @@ export default function StationPage() {
       key: 'action',
       render: (_: any, r: any) => (
         <Space>
-          <Button type="primary" size="small" icon={<CheckCircleOutlined />} onClick={() => handleApprove(r._id, 'active')} className="bg-green-600 hover:bg-green-500">
+          <Button
+            type="primary"
+            size="small"
+            icon={<CheckCircleOutlined />}
+            className="bg-green-600 hover:bg-green-500"
+            onClick={() => handleApprove(r._id, 'active')}
+          >
             Duyệt
           </Button>
-          <Button danger size="small" icon={<CloseCircleOutlined />} onClick={() => handleApprove(r._id, 'rejected')}>
+          <Button
+            danger
+            size="small"
+            icon={<CloseCircleOutlined />}
+            onClick={() => handleApprove(r._id, 'rejected')}
+          >
             Từ chối
           </Button>
         </Space>
-      )
-    }
+      ),
+    },
   ];
 
-    const items = [
+  const items = [
     {
       key: '1',
       label: 'Đang hoạt động',
@@ -166,7 +215,11 @@ export default function StationPage() {
       label: (
         <span>
           Yêu cầu chờ duyệt
-          {pendingStations.length > 0 && <Tag color="red" className="ml-2">{pendingStations.length}</Tag>}
+          {pendingStations.length > 0 && (
+            <Tag color="red" className="ml-2">
+              {pendingStations.length}
+            </Tag>
+          )}
         </span>
       ),
       children: (
@@ -182,37 +235,27 @@ export default function StationPage() {
     },
   ];
 
+  /* ================= RENDER ================= */
   return (
     <div className="p-6 bg-white rounded-lg">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-xl font-bold">Quản lý Bến xe & Điểm đón trả</h2>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingItem(null); form.resetFields(); setIsModalOpen(true); }}>
+        <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
           Thêm Bến xe
         </Button>
       </div>
 
       <Tabs defaultActiveKey="1" items={items} />
 
-      <Modal title={editingItem ? "Cập nhật bến xe" : "Thêm bến xe mới"} open={isModalOpen} onCancel={() => setIsModalOpen(false)} onOk={form.submit}>
-         <Form form={form} onFinish={handleSubmit} layout="vertical">
-            <Form.Item name="name" label="Tên địa điểm" rules={[{ required: true }]}>
-                <Input prefix={<CompassOutlined />} placeholder="Vd: Bến xe Mỹ Đình" />
-            </Form.Item>
-            <Form.Item name="province" label="Tỉnh/Thành phố" rules={[{ required: true }]}>
-                <Select showSearch options={provinces} placeholder="Chọn tỉnh thành" />
-            </Form.Item>
-            <Form.Item name="address" label="Địa chỉ chi tiết" rules={[{ required: true }]}>
-                <Input.TextArea rows={2} />
-            </Form.Item>
-            <Form.Item name="type" label="Loại địa điểm" initialValue="bus_station">
-                <Select>
-                    <Select.Option value="bus_station">Bến xe khách</Select.Option>
-                    <Select.Option value="office">Văn phòng nhà xe</Select.Option>
-                    <Select.Option value="rest_stop">Trạm dừng nghỉ</Select.Option>
-                </Select>
-            </Form.Item>
-         </Form>
-      </Modal>
+      <StationModal
+        open={isModalOpen}
+        initialValues={editingItem}
+        onCancel={() => {
+          setIsModalOpen(false);
+          setEditingItem(null);
+        }}
+        onSubmit={handleSubmit}
+      />
     </div>
   );
 }
