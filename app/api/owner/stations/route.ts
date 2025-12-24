@@ -10,8 +10,6 @@ export async function GET(req: Request) {
     const session = await getCurrentUser();
     if (!session) return NextResponse.json({ message: 'Chưa xác thực' }, { status: 401 });
 
-    // Logic: Lấy (Tất cả Active) HOẶC (Pending của chính tôi)
-    // Để Owner chọn được cái họ vừa tạo dù chưa được duyệt
     const stations = await Station.find({
       $or: [
         { status: 'active' },

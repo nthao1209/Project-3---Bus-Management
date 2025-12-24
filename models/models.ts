@@ -140,6 +140,7 @@ export interface Route {
   distanceKm?: number;
   durationMinutes?: number;
   defaultPickupPoints: RoutePoint[];
+  defaultDropoffPoints: RoutePoint[];
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -152,10 +153,16 @@ const RouteSchema = new Schema<Route>({
   distanceKm: { type: Number },
   durationMinutes: { type: Number },
   defaultPickupPoints: [{
-    name: String,
+  name: { type: String, required: true },
+  address: String,
+  timeOffset: { type: Number, default: 0 }
+  }],
+  defaultDropoffPoints: [{
+    name: { type: String, required: true },
     address: String,
-    timeOffset: Number
+    timeOffset: { type: Number, default: 0 }
   }]
+
 }, { timestamps: true });
 
 
@@ -217,7 +224,6 @@ const TripSchema = new Schema<Trip>({
 
 TripSchema.index({ routeId: 1, departureTime: 1 });
 
-// Mẫu lịch trình cố định
 export interface TripTemplate {
   companyId: Types.ObjectId;
   routeId: Types.ObjectId;
@@ -231,7 +237,10 @@ export interface TripTemplate {
   
   basePrice: number;
   active: boolean; // Bật/Tắt lịch này
+  pickupPoints?: TripPoint[];
+  dropoffPoints?: TripPoint[];
   createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const TripTemplateSchema = new Schema<TripTemplate>({
@@ -240,13 +249,24 @@ const TripTemplateSchema = new Schema<TripTemplate>({
   busId: { type: Schema.Types.ObjectId, ref: 'Bus', required: true },
   driverId: { type: Schema.Types.ObjectId, ref: 'User' },
   
-  departureTimeStr: { type: String, required: true }, // VD: "08:00"
+  departureTimeStr: { type: String, required: true }, 
   durationMinutes: { type: Number, required: true },
   
   daysOfWeek: [{ type: Number }], // Mảng các ngày trong tuần xe chạy
   
   basePrice: { type: Number, required: true },
-  active: { type: Boolean, default: true }
+  active: { type: Boolean, default: true },
+  pickupPoints: [{
+      stationId: { type: Schema.Types.ObjectId, ref: 'Station' },
+      name: String,
+      time: Date,
+      surcharge: { type: Number, default: 0 }
+    }],
+    dropoffPoints: [{
+      stationId: { type: Schema.Types.ObjectId, ref: 'Station' },
+      name: String,
+      time: Date
+    }],
 }, { timestamps: true });
 
 

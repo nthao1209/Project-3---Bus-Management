@@ -33,9 +33,10 @@ export default function RouteModal({
       open={open}
       onCancel={onCancel}
       onOk={form.submit}
-      width={800}
+      width={900}
     >
       <Form form={form} layout="vertical" onFinish={onSubmit}>
+        {/* BASIC INFO */}
         <Row gutter={16}>
           <Col span={24}>
             <Form.Item name="name" label="Tên tuyến" rules={[{ required: true }]}>
@@ -96,7 +97,7 @@ export default function RouteModal({
 
         {/* PICKUP POINTS */}
         <div className="mt-4 p-4 bg-slate-50 rounded border">
-          <h4 className="font-semibold mb-2">Điểm đón dọc đường</h4>
+          <h4 className="font-semibold mb-2">🚏 Điểm đón mặc định</h4>
           <Form.List name="defaultPickupPoints">
             {(fields, { add, remove }) => (
               <>
@@ -127,6 +128,40 @@ export default function RouteModal({
                 ))}
                 <Button block type="dashed" onClick={() => add()} icon={<PlusOutlined />}>
                   Thêm điểm đón
+                </Button>
+              </>
+            )}
+          </Form.List>
+        </div>
+
+        {/* DROPOFF POINTS */}
+        <div className="mt-4 p-4 bg-slate-50 rounded border">
+          <h4 className="font-semibold mb-2">🏁 Điểm trả mặc định</h4>
+          <Form.List name="defaultDropoffPoints">
+            {(fields, { add, remove }) => (
+              <>
+                {fields.map(({ key, name, ...rest }) => (
+                  <Row key={key} gutter={8} className="mb-2">
+                    <Col span={10}>
+                      <Form.Item {...rest} name={[name, 'name']} noStyle>
+                        <Input placeholder="Tên điểm trả" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item {...rest} name={[name, 'address']} noStyle>
+                        <Input placeholder="Địa chỉ" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={2}>
+                      <MinusCircleOutlined
+                        onClick={() => remove(name)}
+                        className="text-red-500 cursor-pointer"
+                      />
+                    </Col>
+                  </Row>
+                ))}
+                <Button block type="dashed" onClick={() => add()} icon={<PlusOutlined />}>
+                  Thêm điểm trả
                 </Button>
               </>
             )}

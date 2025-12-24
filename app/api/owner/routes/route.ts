@@ -26,21 +26,30 @@ export async function GET() {
   }
 }
 
-// POST: Tạo tuyến đường mới
 export async function POST(req: Request) {
   try {
     await dbConnect();
     const session = await getCurrentUser();
-    if (!session) return NextResponse.json({ message: 'Chưa xác thực' }, { status: 401 });
+    if (!session) {
+      return NextResponse.json({ message: 'Chưa xác thực' }, { status: 401 });
+    }
 
     const body = await req.json();
-    const { name, startStationId, endStationId, distanceKm, durationMinutes, defaultPickupPoints } = body;
+    const {
+      name,
+      startStationId,
+      endStationId,
+      distanceKm,
+      durationMinutes,
+      defaultPickupPoints = [],
+      defaultDropoffPoints = []
+    } = body;
 
-    // 1. Tìm Company để gán id
     const company = await Company.findOne({ ownerId: session.userId });
-    if (!company) return NextResponse.json({ message: 'Bạn chưa đăng ký nhà xe' }, { status: 403 });
+    if (!company) {
+      return NextResponse.json({ message: 'Bạn chưa đăng ký nhà xe' }, { status: 403 });
+    }
 
-    // 2. Tạo Route
     const newRoute = await Route.create({
       companyId: company._id,
       name,
@@ -48,11 +57,15 @@ export async function POST(req: Request) {
       endStationId,
       distanceKm,
       durationMinutes,
-      defaultPickupPoints // Mảng điểm đón [{name, address, timeOffset}]
+      defaultPickupPoints,
+      defaultDropoffPoints
     });
 
     return NextResponse.json({ success: true, data: newRoute }, { status: 201 });
   } catch (error: any) {
-    return NextResponse.json({ message: 'Lỗi tạo tuyến', error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { message: 'Lỗi tạo tuyến', error: error.message },
+      { status: 500 }
+    );
   }
 }

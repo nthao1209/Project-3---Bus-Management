@@ -1,66 +1,121 @@
 import { NextResponse } from 'next/server';
 import { dbConnect } from '@/lib/dbConnect';
-import { TripTemplate, Company } from '@/models/models';
+import { TripTemplate, Company, Route } from '@/models/models';
 import { getCurrentUser } from '@/lib/auth';
 
-// 1. GET: Lấy danh sách mẫu lịch trình (ĐỂ SỬA LỖI 405)
+// ================= GET =================
 export async function GET(req: Request) {
   try {
     await dbConnect();
     const session = await getCurrentUser();
-    if (!session) return NextResponse.json({ message: 'Chưa xác thực' }, { status: 401 });
+    if (!session) {
+      return NextResponse.json({ message: 'Chưa xác thực' }, { status: 401 });
+    }
 
-    // Tìm công ty của owner
     const company = await Company.findOne({ ownerId: session.userId });
-    if (!company) return NextResponse.json({ success: true, data: [] });
+    if (!company) {
+      return NextResponse.json({ success: true, data: [] });
+    }
 
-    // Lấy danh sách template
-    const templates = await TripTemplate.find({ 
+    const templates = await TripTemplate.find({
       companyId: company._id,
-      active: true 
+      active: true
     })
-    .populate('routeId','name')
-    .populate('busId','plateNumber type')
-    .sort({ createdAt: -1 });
+      .populate('routeId', 'name defaultPickupPoints defaultDropoffPoints')
+      .populate('busId', 'plateNumber type')
+      .sort({ createdAt: -1 });
 
     return NextResponse.json({ success: true, data: templates });
   } catch (error: any) {
-    return NextResponse.json({ message: 'Lỗi server', error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { message: 'Lỗi server', error: error.message },
+      { status: 500 }
+    );
   }
 }
 
-// 2. POST: Tạo mẫu lịch trình mới (Code cũ)
+// ================= POST =================
 export async function POST(req: Request) {
   try {
     await dbConnect();
     const session = await getCurrentUser();
-    if (!session) return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    if (!session) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
 
     const body = await req.json();
-    // Destructuring dữ liệu
-    const { 
-        routeId, busId, driverId, 
-        departureTimeStr, durationMinutes, 
-        daysOfWeek, basePrice 
+
+    let {
+      routeId,
+      busId,
+      driverId,
+      departureTimeStr,
+      durationMinutes,
+      daysOfWeek,
+      basePrice,
+      pickupPoints,
+      dropoffPoints
     } = body;
 
+    // ====== FIX QUAN TRỌNG: ÉP departureTimeStr ======
+    if (!departureTimeStr) {
+      throw new Error('departureTimeStr is required');
+    }
+
+    // Nếu frontend gửi ISO string → cắt HH:mm
+    if (typeof departureTimeStr === 'string' && departureTimeStr.includes('T')) {
+      departureTimeStr = departureTimeStr.slice(11, 16);
+    }
+
+    // Validate cuối
+    if (!/^\d{2}:\d{2}$/.test(departureTimeStr)) {
+      throw new Error(`departureTimeStr must be HH:mm, got ${departureTimeStr}`);
+    }
+    // ================================================
+
     const company = await Company.findOne({ ownerId: session.userId });
-    if (!company) return NextResponse.json({ message: 'Chưa có nhà xe' }, { status: 403 });
+    if (!company) {
+      return NextResponse.json({ message: 'Chưa có nhà xe' }, { status: 403 });
+    }
+
+    const route = await Route.findOne({
+      _id: routeId,
+      companyId: company._id
+    });
+
+    if (!route) {
+      return NextResponse.json({ message: 'Tuyến không hợp lệ' }, { status: 400 });
+    }
+
+    const finalPickupPoints =
+      Array.isArray(pickupPoints) && pickupPoints.length > 0
+        ? pickupPoints
+        : route.defaultPickupPoints;
+
+    const finalDropoffPoints =
+      Array.isArray(dropoffPoints) && dropoffPoints.length > 0
+        ? dropoffPoints
+        : route.defaultDropoffPoints;
 
     const template = await TripTemplate.create({
       companyId: company._id,
       routeId,
       busId,
       driverId,
-      departureTimeStr, 
+      departureTimeStr,
       durationMinutes,
-      daysOfWeek, 
+      daysOfWeek,
       basePrice,
+      pickupPoints: finalPickupPoints,
+      dropoffPoints: finalDropoffPoints,
       active: true
     });
 
     return NextResponse.json({ success: true, data: template });
   } catch (error: any) {
-    return NextResponse.json({ message: error.message }, { status: 500 });
+    return NextResponse.json(
+      { message: error.message },
+      { status: 500 }
+    );
   }
 }

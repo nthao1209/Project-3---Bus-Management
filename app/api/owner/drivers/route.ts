@@ -4,9 +4,7 @@ import { User, Company } from '@/models/models';
 import { getCurrentUser } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 
-// GET: Giữ nguyên logic cũ (lấy list driver của owner)
 export async function GET(req: Request) {
-  // ... (Code cũ giữ nguyên)
   try {
     await dbConnect();
     const session = await getCurrentUser();
