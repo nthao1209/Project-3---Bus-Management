@@ -2,20 +2,18 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Button, Select, DatePicker, Tag, message, Space, Popconfirm, Avatar 
+  Button, Select, DatePicker, Tag, message, Space, Popconfirm, Avatar, Tooltip 
 } from 'antd';
 import { 
   EditOutlined, DeleteOutlined, 
   UserOutlined, ClockCircleOutlined, CarOutlined, EnvironmentOutlined, SyncOutlined 
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import DataTable from '@/components/DataTable';
-import TripModal from '@/components/TripModal'; // Import Component Modal vừa tách
+import DataTable from '@/components/DataTable'; // Giả sử bạn đã có component này
+import TripModal from '@/components/TripModal'; // Component Modal chúng ta vừa sửa
 import dayjs from 'dayjs';
 
-// --- Interfaces ---
 interface Trip {
-  id: string; 
   _id: string;
   routeId: { _id: string; name: string };
   busId: { _id: string; plateNumber: string; type: string };
@@ -24,11 +22,8 @@ interface Trip {
   arrivalTime: string;
   basePrice: number;
   status: 'scheduled' | 'running' | 'completed' | 'cancelled';
-}
-
-interface SelectOption {
-  label: string;
-  value: string;
+  pickupPoints: any[];
+  dropoffPoints: any[];
 }
 
 export default function OwnerTripsPage() {
@@ -36,71 +31,83 @@ export default function OwnerTripsPage() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   
-  // State lọc và tạo lịch tự động
   const [filterDate, setFilterDate] = useState<dayjs.Dayjs | null>(dayjs());
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [isFetchingDetail, setIsFetchingDetail] = useState(false);
 
   // State Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTrip, setEditingTrip] = useState<Trip | null>(null);
 
-  // State dữ liệu phụ trợ
-  const [optionsData, setOptionsData] = useState<{
-    companies: SelectOption[];
-    routes: SelectOption[];
-    buses: SelectOption[];
-    drivers: SelectOption[];
-    templates: SelectOption[];
-  }>({ companies: [], routes: [], buses: [], drivers: [], templates: [] });
+  // State dữ liệu phụ trợ (Options cho Select)
+  const [modalData, setModalData] = useState<{
+    companies: any[];
+    routes: any[];
+    fullRoutes: any[]; // QUAN TRỌNG: Để lấy defaultPickupPoints
+    buses: any[];
+    drivers: any[];
+    stations: any[]; // QUAN TRỌNG: Chứa address để auto-fill
+  }>({ 
+    companies: [], routes: [], fullRoutes: [], buses: [], drivers: [], stations: [] 
+  });
 
   // 1. Fetch Danh sách Chuyến đi
   const fetchTrips = async () => {
     setLoading(true);
     try {
-      let url = '/api/owner/trips';
+      let url = '/api/owner/trips'; // API GET danh sách
       if (filterDate) {
         url += `?date=${filterDate.format('YYYY-MM-DD')}`;
       }
       const res = await fetch(url);
       const data = await res.json();
       if (data.success) {
-        setTrips(data.data.map((item: any) => ({ ...item, id: item._id })));
+        setTrips(data.data);
       }
-    } catch {
+    } catch (err) {
       message.error('Lỗi tải danh sách chuyến đi');
     } finally {
       setLoading(false);
     }
   };
 
-  // 2. Fetch Dữ liệu phụ trợ (Routes, Buses, Drivers, Templates...)
+  // 2. Fetch Dữ liệu phụ trợ cho Modal
   const fetchDependencies = async () => {
     try {
-      const [resComp, resRoutes, resBuses, resDrivers, resTemplates] = await Promise.all([
-        fetch('/api/owner/companies'),
-        fetch('/api/owner/routes'),
-        fetch('/api/owner/buses'),
-        fetch('/api/owner/drivers'),
-        fetch('/api/owner/trip-templates') 
+      // Gọi song song các API để tiết kiệm thời gian
+      const [resComp, resRoutes, resBuses, resDrivers, resStations] = await Promise.all([
+        fetch('/api/owner/companies'), // Lấy danh sách nhà xe của owner
+        fetch('/api/owner/routes'),    // Lấy danh sách tuyến
+        fetch('/api/owner/buses'),     // Lấy danh sách xe
+        fetch('/api/owner/drivers'),   // Lấy danh sách tài xế
+        fetch('/api/owner/stations')   // Lấy danh sách bến bãi
       ]);
 
-      const [dComp, dRoutes, dBuses, dDrivers, dTemplates] = await Promise.all([
-        resComp.json(), resRoutes.json(), resBuses.json(), resDrivers.json(), resTemplates.json()
+      const [dComp, dRoutes, dBuses, dDrivers, dStations] = await Promise.all([
+        resComp.json(), resRoutes.json(), resBuses.json(), resDrivers.json(), resStations.json()
       ]);
       
-      console.log("API Routes:", dRoutes);
-      console.log("API Buses:", dBuses);
-
-      setOptionsData({
-        companies: dComp.success ? dComp.data.map((c: any) => ({ label: c.name, value: c._id })) : [],
-        routes: dRoutes.success ? dRoutes.data.map((r: any) => ({ label: r.name, value: r._id })) : [],
-        buses: dBuses.success ? dBuses.data.map((b: any) => ({ label: `${b.plateNumber} (${b.type})`, value: b._id })) : [],
-        drivers: dDrivers.success ? dDrivers.data.map((d: any) => ({ label: `${d.name} - ${d.phone}`, value: d._id })) : [],
-        templates: dTemplates.success ? dTemplates.data.map((t: any) => ({ label: t.name, value: t._id })) : [],
+      setModalData({
+        // Format dữ liệu cho Select (label, value)
+        companies: dComp.data?.map((c: any) => ({ label: c.name, value: c._id })) || [],
+        
+        routes: dRoutes.data?.map((r: any) => ({ label: r.name, value: r._id })) || [],
+        fullRoutes: dRoutes.data || [], // Lưu raw data để TripBaseForm dùng logic default points
+        
+        buses: dBuses.data?.map((b: any) => ({ label: `${b.plateNumber} (${b.type})`, value: b._id })) || [],
+        
+        drivers: dDrivers.data?.map((d: any) => ({ label: `${d.name} - ${d.phone}`, value: d._id })) || [],
+        
+        // QUAN TRỌNG: Map thêm trường address vào option stations
+        stations: dStations.data?.map((s: any) => ({ 
+          label: s.name, 
+          value: s._id, 
+          address: s.address // Cần trường này để auto-fill địa chỉ
+        })) || [],
       });
 
     } catch (error) {
       console.error("Lỗi tải dữ liệu phụ trợ", error);
+      message.error("Không tải được dữ liệu danh mục");
     }
   };
 
@@ -109,7 +116,6 @@ export default function OwnerTripsPage() {
     fetchDependencies();
   }, [filterDate]);
 
-  // 3. Xử lý Tạo/Sửa Chuyến đi (Gọi từ Modal)
   const handleModalSubmit = async (values: any) => {
     setSubmitting(true);
     try {
@@ -125,30 +131,26 @@ export default function OwnerTripsPage() {
       const json = await res.json();
 
       if (res.ok) {
-        message.success(editingTrip ? 'Cập nhật thành công' : 'Lên lịch thành công');
+        message.success(editingTrip ? 'Cập nhật thành công' : 'Tạo chuyến thành công');
         setIsModalOpen(false);
         setEditingTrip(null);
-        fetchTrips();
+        fetchTrips(); // Reload bảng
       } else {
         message.error(json.message || 'Có lỗi xảy ra');
       }
     } catch {
-      message.error('Lỗi kết nối');
+      message.error('Lỗi kết nối server');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // 4. Xử lý Sinh Lịch Tự Động (Cron Trigger)
+  // 4. Sinh Lịch Tự Động (Generate from Templates)
   const handleGenerateTrips = async () => {
-    if (!selectedTemplateId) return message.warning('Vui lòng chọn mẫu lịch trình trước');
-    
-    const hide = message.loading('Đang sinh lịch tự động...', 0);
+    const hide = message.loading('Đang sinh lịch từ mẫu...', 0);
     try {
-      const res = await fetch('/api/cron/generate-trips', {
+      const res = await fetch('/api/owner/trips/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ templateId: selectedTemplateId })
       });
       const json = await res.json();
       
@@ -165,30 +167,56 @@ export default function OwnerTripsPage() {
     }
   };
 
-  // 5. Xử lý Xóa
+  // 5. Xóa chuyến đi
   const handleDelete = async (id: string) => {
-    await fetch(`/api/owner/trips/${id}`, { method: 'DELETE' });
-    message.success('Đã xóa chuyến đi');
-    fetchTrips();
+    try {
+      const res = await fetch(`/api/owner/trips/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        message.success('Đã xóa chuyến đi');
+        fetchTrips();
+      } else {
+        message.error('Không thể xóa');
+      }
+    } catch {
+      message.error('Lỗi kết nối');
+    }
   };
 
-  // --- UI Components ---
-  const openModal = (record?: Trip) => {
-    setEditingTrip(record || null);
-    setIsModalOpen(true);
+  const openModal = async (record?: Trip) => {
+    if(record) {
+      setIsFetchingDetail(true);
+      try{
+        const res= await fetch(`/api/owner/trips/${record._id}`);
+        const data = await res.json();
+        if(data.success){
+          setEditingTrip(data.data);
+          setIsModalOpen(true);
+        } else {
+          message.error('Không tải được chi tiết chuyến đi');
+        }
+      } catch(error){
+        console.error(error);
+        message.error('Lỗi kết nối server');
+      } finally {
+      setIsFetchingDetail(false);
+      }
+    } else {
+      setEditingTrip(record || null);
+      setIsModalOpen(true);
+    }
   };
 
   const columns: ColumnsType<Trip> = [
     {
-      title: 'Tuyến đường & Giờ chạy',
+      title: 'Tuyến & Thời gian',
       key: 'route',
       width: 250,
       render: (_, r) => (
         <div className="flex flex-col">
           <span className="font-bold text-blue-700 flex items-center gap-1">
-            <EnvironmentOutlined /> {r.routeId?.name || 'Chưa đặt tên'}
+            <EnvironmentOutlined /> {r.routeId?.name || '---'}
           </span>
-          <div className="text-gray-500 text-sm mt-1">
+          <div className="text-gray-600 text-sm mt-1 font-medium">
             <ClockCircleOutlined /> {dayjs(r.departureTime).format('HH:mm')} - {dayjs(r.arrivalTime).format('HH:mm')}
           </div>
           <span className="text-xs text-gray-400">{dayjs(r.departureTime).format('DD/MM/YYYY')}</span>
@@ -196,13 +224,13 @@ export default function OwnerTripsPage() {
       )
     },
     {
-      title: 'Xe & Biển số',
+      title: 'Xe',
       key: 'bus',
-      width: 200,
+      width: 180,
       render: (_, r) => (
         <div>
           <div className="font-semibold flex items-center gap-2"><CarOutlined /> {r.busId?.plateNumber}</div>
-          <Tag color="cyan" className="mt-1">{r.busId?.type}</Tag>
+          <Tag color="cyan" className="mt-1 text-xs">{r.busId?.type}</Tag>
         </div>
       )
     },
@@ -212,13 +240,20 @@ export default function OwnerTripsPage() {
       width: 200,
       render: (_, r) => r.driverId ? (
         <Space>
-          <Avatar icon={<UserOutlined />} className="bg-orange-400" />
+          <Avatar icon={<UserOutlined />} className="bg-orange-400" size="small" />
           <div className="flex flex-col">
-             <span className="font-medium">{r.driverId.name}</span>
+             <span className="text-sm font-medium">{r.driverId.name}</span>
              <span className="text-xs text-gray-500">{r.driverId.phone}</span>
           </div>
         </Space>
       ) : <Tag>Chưa phân công</Tag>
+    },
+    {
+      title: 'Giá vé',
+      dataIndex: 'basePrice',
+      key: 'price',
+      width: 120,
+      render: (val) => <span className="font-medium text-green-600">{val?.toLocaleString()} đ</span>
     },
     {
       title: 'Trạng thái',
@@ -227,80 +262,79 @@ export default function OwnerTripsPage() {
       width: 120,
       render: (st) => {
         const colorMap: any = { scheduled: 'blue', running: 'green', completed: 'gray', cancelled: 'red' };
-        const textMap: any = { scheduled: 'Đã lên lịch', running: 'Đang chạy', completed: 'Hoàn thành', cancelled: 'Đã hủy' };
+        const textMap: any = { scheduled: 'Sắp chạy', running: 'Đang chạy', completed: 'Hoàn thành', cancelled: 'Hủy' };
         return <Tag color={colorMap[st]}>{textMap[st]}</Tag>;
       }
     },
     {
-      title: 'Hành động',
+      title: '',
       key: 'action',
       fixed: 'right',
       width: 100,
       render: (_, r) => (
         <Space>
-          <Button icon={<EditOutlined />} size="small" type="text" onClick={() => openModal(r)} className="text-blue-600" />
-          <Popconfirm title="Xóa chuyến này?" onConfirm={() => handleDelete(r._id)}>
-            <Button icon={<DeleteOutlined />} size="small" type="text" danger />
+          <Tooltip title="Sửa">
+            <Button icon={<EditOutlined />} size="small" type="text" loading={isFetchingDetail && editingTrip?._id === r._id} onClick={() => openModal(r)} className="text-blue-600 hover:bg-blue-50" />
+          </Tooltip>
+          <Popconfirm title="Bạn chắc chắn muốn xóa?" onConfirm={() => handleDelete(r._id)}>
+            <Tooltip title="Xóa">
+              <Button icon={<DeleteOutlined />} size="small" type="text" danger className="hover:bg-red-50" />
+            </Tooltip>
           </Popconfirm>
         </Space>
       )
     }
   ];
 
-  // Thanh công cụ phụ (Filter & Auto Generate)
+  // Tool Bar phụ (Bên phải nút Thêm mới)
   const ExtraTools = (
-    <div className="flex items-center gap-2 flex-wrap justify-end">
-      {/* Chọn Template để sinh lịch */}
-      <Select 
-        placeholder="Chọn mẫu lịch trình..." 
-        style={{ width: 180 }} 
-        options={optionsData.templates}
-        onChange={(val) => setSelectedTemplateId(val)}
-        allowClear
-      />
+    <div className="flex items-center gap-3">
       <Button 
-        type="primary" 
         icon={<SyncOutlined />} 
         onClick={handleGenerateTrips}
-        disabled={!selectedTemplateId}
-        className="bg-purple-600 hover:bg-purple-500"
+        className="text-purple-600 border-purple-600 hover:bg-purple-50"
       >
-        Cập nhật lịch (30 ngày)
+        Sinh lịch tự động
       </Button>
       
-      {/* Bộ lọc ngày */}
       <DatePicker 
         value={filterDate} 
         onChange={(d) => setFilterDate(d)} 
         format="DD/MM/YYYY" 
         allowClear={false}
-        className="ml-2 border-blue-500"
+        placeholder="Lọc theo ngày"
+        className="w-40"
       />
     </div>
   );
 
   return (
-    <div className="p-4 bg-gray-50 min-h-screen">
+    <div className="p-6 bg-gray-50 min-h-screen">
       <DataTable
-        title="Quản lý Lịch Chạy"
+        title="Quản lý Chuyến đi"
         columns={columns}
         dataSource={trips}
         loading={loading}
         onReload={fetchTrips}
         onAdd={() => openModal()}
-        searchPlaceholder="Tìm tên tuyến, biển số..."
-        searchFields={['routeId.name', 'busId.plateNumber']}
+        searchPlaceholder="Tìm theo tên tuyến, biển số..."
+         searchFields={[
+          'routeId.name',
+          'busId.plateNumber',
+          'driverId.name',
+          'driverId.phone'
+          ]}
         extraButtons={ExtraTools}
       />
 
-      {/* Component Modal Đã Tách */}
+      {/* Modal Quản lý Chuyến đi */}
       <TripModal
         open={isModalOpen}
         loading={submitting}
         initialValues={editingTrip}
         onCancel={() => setIsModalOpen(false)}
         onSubmit={handleModalSubmit}
-        data={optionsData} // Truyền toàn bộ options vào
+        data={modalData} // Truyền toàn bộ data vào form con
       />
     </div>
   );

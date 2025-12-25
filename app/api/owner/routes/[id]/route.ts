@@ -5,6 +5,15 @@ import { getCurrentUser } from '@/lib/auth';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
+const formatPoints = (points: any[]) => {
+  if (!Array.isArray(points)) return [];
+  return points.map((p) => ({
+    name: p.name,
+    address: p.address,
+    timeOffset: Number(p.timeOffset) || 0,
+    defaultSurcharge: Number(p.defaultSurcharge) || 0
+  }));
+};
 // PUT: Cập nhật tuyến đường
 export async function PUT(req: Request, { params }: RouteParams) {
   try {
@@ -24,7 +33,17 @@ export async function PUT(req: Request, { params }: RouteParams) {
     if (!isOwner) return NextResponse.json({ message: 'Không có quyền sửa' }, { status: 403 });
 
     // 3. Update
-    const updatedRoute = await Route.findByIdAndUpdate(id, body, { new: true });
+
+    const updateData = { ...body };
+    if(updateData.defaultPickupPoints) {
+      updateData.defaultPickupPoints = formatPoints(updateData.defaultPickupPoints);
+    }
+    
+    if(updateData.defaultDropoffPoints) {
+      updateData.defaultDropoffPoints = formatPoints(updateData.defaultDropoffPoints);
+    }
+
+    const updatedRoute = await Route.findByIdAndUpdate(id, updateData, { new: true });
 
     return NextResponse.json({ success: true, data: updatedRoute });
   } catch (error: any) {

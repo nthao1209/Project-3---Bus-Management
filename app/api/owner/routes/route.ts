@@ -3,6 +3,17 @@ import { dbConnect } from '@/lib/dbConnect';
 import { Route, Company } from '@/models/models';
 import { getCurrentUser } from '@/lib/auth';
 
+
+const formatPoints = (points: any[]) => {
+  if (!Array.isArray(points)) return [];
+  return points.map((p) => ({
+    name: p.name,
+    address: p.address,
+    timeOffset: Number(p.timeOffset) || 0,        
+    defaultSurcharge: Number(p.defaultSurcharge) || 0 
+  }));
+};
+
 // GET: Lấy danh sách tuyến đường của nhà xe
 export async function GET() {
   try {
@@ -50,6 +61,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'Bạn chưa đăng ký nhà xe' }, { status: 403 });
     }
 
+    const finalPickupPoints = formatPoints(defaultPickupPoints);
+    const finalDropoffPoints = formatPoints(defaultDropoffPoints);
+
     const newRoute = await Route.create({
       companyId: company._id,
       name,
@@ -57,8 +71,8 @@ export async function POST(req: Request) {
       endStationId,
       distanceKm,
       durationMinutes,
-      defaultPickupPoints,
-      defaultDropoffPoints
+      defaultPickupPoints: finalPickupPoints,
+      defaultDropoffPoints: finalDropoffPoints
     });
 
     return NextResponse.json({ success: true, data: newRoute }, { status: 201 });

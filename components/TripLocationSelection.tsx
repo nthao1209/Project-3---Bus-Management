@@ -51,7 +51,7 @@ export default function TripLocationSelection({
     const fetchTripDetails = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`/api/trips/${tripId}`);
+        const res = await fetch(`/api/users/trips/${tripId}`);
         const json = await res.json();
         
         if (json.success) {
@@ -88,7 +88,6 @@ export default function TripLocationSelection({
     onNext(pickup, dropoff);
   };
 
-  // Helper: Lọc danh sách theo từ khóa tìm kiếm
   const filterPoints = (points: Point[], keyword: string) => {
     if (!keyword) return points;
     const lowerKey = keyword.toLowerCase();
@@ -101,7 +100,6 @@ export default function TripLocationSelection({
   const filteredPickups = filterPoints(pickupPoints, searchPickup);
   const filteredDropoffs = filterPoints(dropoffPoints, searchDropoff);
 
-  // --- RENDER ITEM (Một dòng địa điểm) ---
   const renderPointItem = (point: Point, isPickup: boolean) => {
     const isSelected = isPickup ? selectedPickup === point._id : selectedDropoff === point._id;
     const timeStr = dayjs(point.time).format('HH:mm');

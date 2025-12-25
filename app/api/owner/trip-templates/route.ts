@@ -57,21 +57,17 @@ export async function POST(req: Request) {
       dropoffPoints
     } = body;
 
-    // ====== FIX QUAN TRỌNG: ÉP departureTimeStr ======
     if (!departureTimeStr) {
       throw new Error('departureTimeStr is required');
     }
 
-    // Nếu frontend gửi ISO string → cắt HH:mm
     if (typeof departureTimeStr === 'string' && departureTimeStr.includes('T')) {
       departureTimeStr = departureTimeStr.slice(11, 16);
     }
 
-    // Validate cuối
     if (!/^\d{2}:\d{2}$/.test(departureTimeStr)) {
       throw new Error(`departureTimeStr must be HH:mm, got ${departureTimeStr}`);
     }
-    // ================================================
 
     const company = await Company.findOne({ ownerId: session.userId });
     if (!company) {
@@ -87,15 +83,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'Tuyến không hợp lệ' }, { status: 400 });
     }
 
-    const finalPickupPoints =
-      Array.isArray(pickupPoints) && pickupPoints.length > 0
-        ? pickupPoints
-        : route.defaultPickupPoints;
+    const finalPickupPoints = (Array.isArray(pickupPoints) && pickupPoints.length > 0)
+      ? pickupPoints.map((p: any) => ({
+          stationId: p.stationId,
+          name: p.name,
+          address: p.address,
+          timeOffset: Number(p.timeOffset) || 0,        
+          defaultSurcharge: Number(p.defaultSurcharge) || 0
+        }))
+      : route.defaultPickupPoints; 
 
-    const finalDropoffPoints =
-      Array.isArray(dropoffPoints) && dropoffPoints.length > 0
-        ? dropoffPoints
-        : route.defaultDropoffPoints;
+    const finalDropoffPoints = (Array.isArray(dropoffPoints) && dropoffPoints.length > 0)
+      ? dropoffPoints.map((p: any) => ({
+          stationId: p.stationId,
+          name: p.name,
+          address: p.address,
+          timeOffset: Number(p.timeOffset) || 0,
+          defaultSurcharge: Number(p.defaultSurcharge) || 0
+        }))
+      : route.defaultDropoffPoints;
 
     const template = await TripTemplate.create({
       companyId: company._id,

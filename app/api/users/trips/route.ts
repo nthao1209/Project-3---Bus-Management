@@ -18,9 +18,7 @@ export async function GET(req: Request) {
       );
     }
 
-    /* =========================
-       1. FIND STATIONS
-    ========================== */
+      //  1. FIND STATIONS
     const startStations = await Station.find({
       province: { $regex: fromProvince, $options: 'i' }
     }).select('_id');
@@ -36,15 +34,10 @@ export async function GET(req: Request) {
       });
     }
 
-    const startStationIds = startStations.map(s => s._id);
-    const endStationIds = endStations.map(s => s._id);
-
-    /* =========================
-       2. FIND ROUTES
-    ========================== */
-    const routes = await Route.find({
-      startStationId: { $in: startStationIds },
-      endStationId: { $in: endStationIds }
+    //   2. FIND ROUTES
+     const routes = await Route.find({
+      startStationId: { $in: startStations.map(s => s._id) },
+      endStationId: { $in: endStations.map(s => s._id) }
     }).select('_id');
 
     if (routes.length === 0) {
@@ -54,11 +47,8 @@ export async function GET(req: Request) {
       });
     }
 
-    const routeIds = routes.map(r => r._id);
 
-    /* =========================
-       3. FIX DATE (UTC SAFE)
-    ========================== */
+    //   3. FIX DATE (UTC SAFE)
     const searchDate = new Date(dateStr + 'T00:00:00.000Z');
 
     const startOfDay = new Date(searchDate);
@@ -67,67 +57,52 @@ export async function GET(req: Request) {
     const endOfDay = new Date(searchDate);
     endOfDay.setUTCHours(23, 59, 59, 999);
 
-    /* =========================
-       4. FIND TRIPS
-    ========================== */
+     //  4. FIND TRIPS
+    
     const trips = await Trip.find({
-      routeId: { $in: routeIds },
-      departureTime: {
-        $gte: startOfDay,
-        $lte: endOfDay
-      },
+      routeId: { $in: routes.map(r => r._id) },
+      departureTime: { $gte: startOfDay, $lte: endOfDay },
       status: { $in: ['scheduled', 'running'] }
     })
-      .populate({
-        path: 'companyId',
-        select: 'name'
-      })
-      .populate({
-        path: 'busId',
-        select: 'type seatLayout'
-      })
-      .populate({
-        path: 'routeId',
-        select: 'name durationMinutes'
-      })
-      .sort({ departureTime: 1 });
+    .populate('companyId', 'name')
+    .populate('busId', 'type seatLayout')
+    .populate('routeId', 'name durationMinutes')
+    .sort({ departureTime: 1 })
+    .lean(); // Dùng lean() để query nhanh hơn
 
-    /* =========================
-       5. FORMAT RESPONSE
-    ========================== */
+    //  5. FORMAT RESPONSE
+
     const formattedTrips = trips.map(trip => {
       const totalSeats =
         trip.busId?.seatLayout?.totalSeats ?? 40;
 
-      const bookedSeats =
-        trip.seatsStatus instanceof Map
-          ? trip.seatsStatus.size
-          : 0;
+      const bookedSeats = 
+        trip.seatsStatus ? Object.keys(trip.seatsStatus).length : 0; 
 
       return {
         _id: trip._id,
-        companyName: trip.companyId?.name ?? 'Nhà xe',
-        busType: trip.busId?.type ?? 'Xe khách',
+        companyName: trip.companyId?.name,
+        busType: trip.busId?.type,
         departureTime: trip.departureTime,
         arrivalTime: trip.arrivalTime,
-        departureStation: fromProvince,
-        arrivalStation: toProvince,
+        durationMinutes: trip.routeId?.durationMinutes,
         basePrice: trip.basePrice,
-        availableSeats: Math.max(totalSeats - bookedSeats, 0)
+        availableSeats: Math.max(totalSeats - bookedSeats, 0),
+        pickupPoints: trip.pickupPoints.map((p: any) => ({
+          id: p._id, 
+          name: p.name,
+          address: p.address,
+          time: p.time, 
+          surcharge: p.surcharge
+        })),
+        dropoffPoints: trip.dropoffPoints.map((p: any) => ({
+          id: p._id,
+          name: p.name,
+          address: p.address,
+          time: p.time, 
+          surcharge: p.surcharge 
+        }))
       };
-    });
-
-    /* =========================
-       6. DEBUG LOG (RẤT NÊN GIỮ)
-    ========================== */
-    console.log({
-      fromProvince,
-      toProvince,
-      dateStr,
-      startOfDay,
-      endOfDay,
-      routes: routeIds.length,
-      trips: formattedTrips.length
     });
 
     return NextResponse.json({

@@ -2,43 +2,34 @@ import { NextResponse } from 'next/server';
 import { dbConnect } from '@/lib/dbConnect';
 import { Trip, TripTemplate } from '@/models/models';
 
-/**
- * Tạo Date hợp lệ từ ngày + chuỗi HH:mm
- */
 const createDateFromTime = (baseDate: Date, timeStr: string) => {
-  if (!timeStr || typeof timeStr !== 'string') {
-    throw new Error('departureTimeStr is missing or invalid');
-  }
-
-  const cleaned = timeStr.trim(); // rất quan trọng
-  const match = cleaned.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
-
-  if (!match) {
-    throw new Error(`Invalid time format (HH:mm): ${timeStr}`);
-  }
-
-  const hours = Number(match[1]);
-  const minutes = Number(match[2]);
-
+  if (!timeStr || typeof timeStr !== 'string') throw new Error('Invalid timeStr');
+  const [hours, minutes] = timeStr.trim().split(':').map(Number);
   const date = new Date(baseDate);
   date.setHours(hours, minutes, 0, 0);
-
-  if (isNaN(date.getTime())) {
-    throw new Error(`Invalid Date created from ${timeStr}`);
-  }
-
   return date;
 };
 
-/**
- * POST /api/trips/generate
- * Sinh trip từ template (Owner hoặc Cron)
- */
+const calculateInstancePoints = (departureTime: Date, points: any[]) => {
+  if (!Array.isArray(points)) return [];
+  
+  return points.map((p) => {
+    const pointTime = new Date(departureTime.getTime() + (p.timeOffset || 0) * 60000);
+    
+    return {
+      stationId: p.stationId,
+      name: p.name,
+      address: p.address,
+      time: pointTime,           // Lưu giờ cụ thể vào DB
+      surcharge: p.defaultSurcharge || 0 // Chốt giá phụ thu
+    };
+  });
+};
+
 export async function POST(req: Request) {
   try {
     await dbConnect();
 
-    // 1. Lấy template đang active
     const templates = await TripTemplate.find({ active: true })
       .populate('routeId')
       .lean();
@@ -82,6 +73,17 @@ export async function POST(req: Request) {
           departureTime.getTime() + template.durationMinutes * 60000
         );
 
+        // 5. Check trùng chuyến (cùng xe + cùng ngày + cùng giờ)
+         const exists = await Trip.exists({
+          busId: template.busId,
+          departureTime: {
+            $gte: new Date(departureTime.getTime() - 5 * 60000),
+            $lte: new Date(departureTime.getTime() + 5 * 60000)
+          },
+          status: { $ne: 'cancelled' }
+        });
+        if (exists) continue;
+
         // 4. Pickup / Dropoff
         const pickupPoints =
           template.pickupPoints?.length > 0
@@ -92,24 +94,9 @@ export async function POST(req: Request) {
           template.dropoffPoints?.length > 0
             ? template.dropoffPoints
             : template.routeId.defaultDropoffPoints ?? [];
-
-        // 5. Check trùng chuyến (cùng xe + cùng ngày + cùng giờ)
-        const startOfDay = new Date(departureTime);
-        startOfDay.setHours(0, 0, 0, 0);
-
-        const endOfDay = new Date(departureTime);
-        endOfDay.setHours(23, 59, 59, 999);
-
-        const exists = await Trip.exists({
-          companyId: template.companyId,
-          busId: template.busId,
-          departureTime: {
-            $gte: startOfDay,
-            $lte: endOfDay
-          }
-        });
-
-        if (exists) continue;
+ 
+        const finalPickupPoints = calculateInstancePoints(departureTime, pickupPoints);
+        const finalDropoffPoints = calculateInstancePoints(departureTime, dropoffPoints);
 
         // 6. Tạo Trip
         await Trip.create({
@@ -120,8 +107,8 @@ export async function POST(req: Request) {
           departureTime,
           arrivalTime,
           basePrice: template.basePrice,
-          pickupPoints,
-          dropoffPoints,
+          pickupPoints: finalPickupPoints,
+          dropoffPoints: finalDropoffPoints,
           status: 'scheduled',
           seatsStatus: {}
         });

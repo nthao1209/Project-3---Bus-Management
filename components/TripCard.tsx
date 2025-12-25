@@ -91,7 +91,6 @@ export default function TripCard({ trip }: TripCardProps) {
       {/* --- PHẦN 1: THÔNG TIN CHUYẾN XE (LUÔN HIỆN) --- */}
       <div className="p-4 flex flex-col sm:flex-row gap-4">
         
-        {/* Hình ảnh */}
         <div className="w-full sm:w-[160px] h-[120px] relative flex-shrink-0 cursor-pointer" onClick={toggleExpand}>
           <Image 
             src={trip.busImage || '/Logo.png'} 
@@ -104,7 +103,6 @@ export default function TripCard({ trip }: TripCardProps) {
           </div>
         </div>
 
-        {/* Thông tin chi tiết */}
         <div className="flex-1 flex flex-col justify-between">
           <div className="flex justify-between items-start">
             <div>

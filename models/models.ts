@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
+import { addRequestMeta } from 'next/dist/server/request-meta';
 
 
 export interface Station {
@@ -130,6 +131,7 @@ interface RoutePoint {
   name: string;
   address?: string;
   timeOffset?: number;
+  defaultSurcharge?: number;
 }
 
 export interface Route {
@@ -153,14 +155,17 @@ const RouteSchema = new Schema<Route>({
   distanceKm: { type: Number },
   durationMinutes: { type: Number },
   defaultPickupPoints: [{
-  name: { type: String, required: true },
-  address: String,
-  timeOffset: { type: Number, default: 0 }
-  }],
+      name: { type: String, required: true },
+      address: String,
+      timeOffset: { type: Number, default: 0 },
+      defaultSurcharge: { type: Number, default: 0 }
+      }],
   defaultDropoffPoints: [{
     name: { type: String, required: true },
     address: String,
-    timeOffset: { type: Number, default: 0 }
+    timeOffset: { type: Number, default: 0 },
+    defaultSurcharge: { type: Number, default: 0 },
+
   }]
 
 }, { timestamps: true });
@@ -169,6 +174,7 @@ const RouteSchema = new Schema<Route>({
 interface TripPoint {
   stationId?: Types.ObjectId;
   name: string;
+  address?: string;
   time: Date;
   surcharge?: number;
 }
@@ -207,13 +213,16 @@ const TripSchema = new Schema<Trip>({
   pickupPoints: [{
     stationId: { type: Schema.Types.ObjectId, ref: 'Station' },
     name: String,
+    address: String,
     time: Date,
     surcharge: { type: Number, default: 0 }
   }],
   dropoffPoints: [{
     stationId: { type: Schema.Types.ObjectId, ref: 'Station' },
     name: String,
-    time: Date
+    address: String,
+    time: Date,
+    surcharge: {type: Number, default: 0}
   }],
   status: { 
     type: String, 

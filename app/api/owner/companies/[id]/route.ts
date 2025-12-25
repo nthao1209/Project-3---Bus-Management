@@ -64,7 +64,6 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     
     if (!deletedCompany) return NextResponse.json({ message: 'Không tìm thấy nhà xe' }, { status: 404 });
 
-    // Kiểm tra xem user còn công ty nào không, nếu không thì hạ role
     const remainingCompanies = await Company.find({ ownerId: session.userId });
     if (remainingCompanies.length === 0) {
       await User.findByIdAndUpdate(session.userId, { role: 'user' });
