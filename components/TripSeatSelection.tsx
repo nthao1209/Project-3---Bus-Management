@@ -60,22 +60,19 @@ export default function TripSeatSelection({ tripId, onClose, onNext }: TripSeatS
         const data: ApiTripData = json.data;
         setTripData(data);
 
-        // 2. MAPPING DỮ LIỆU: Layout Bus + Status -> Danh sách ghế UI
         const generatedSeats: SeatUI[] = [];
         const totalSeats = data.busId.seatLayout?.totalSeats || 40;
         const totalFloors = data.busId.seatLayout?.totalFloors || 2;
         const seatsPerFloor = Math.ceil(totalSeats / totalFloors);
 
-        // Logic sinh mã ghế tự động (A01, A02... B01, B02...) nếu DB không lưu cứng
         for (let f = 1; f <= totalFloors; f++) {
-            const prefix = f === 1 ? 'A' : 'B'; // Tầng 1 là A, Tầng 2 là B
+            const prefix = f === 1 ? 'A' : 'B'; 
             for (let i = 1; i <= seatsPerFloor; i++) {
-                const seatId = `${prefix}${i.toString().padStart(2, '0')}`; // A01, A02...
+                const seatId = `${prefix}${i.toString().padStart(2, '0')}`; 
                 
                 const statusFromDb = data.seatsStatus?.[seatId] || 'available'; 
                 
-                // Xác định loại ghế (đơn/đôi) & giá
-                // (Logic này có thể lấy từ DB nếu lưu kỹ, tạm thời hardcode ví dụ)
+            
                 const isDouble = seatId === 'B05' || seatId === 'A01'; // Ví dụ ghế vip
                 const price = isDouble ? data.basePrice * 1.5 : data.basePrice;
 

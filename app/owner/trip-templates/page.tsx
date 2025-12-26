@@ -33,15 +33,14 @@ export default function TripTemplatesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<TripTemplate | null>(null);
 
-  /** dropdown data */
   const [data, setData] = useState({
     companies: [],
     routes: [],
     buses: [],
-    drivers: []
+    drivers: [],
+    fullRoutes: []
   });
 
-  /* ================= FETCH ================= */
 
   const fetchAll = async () => {
     setLoading(true);
@@ -81,6 +80,7 @@ export default function TripTemplatesPage() {
       setData({
         companies: cData.data?.map((c: any) => ({ label: c.name, value: c._id })) || [],
         routes: rData.data?.map((r: any) => ({ label: r.name, value: r._id })) || [],
+        fullRoutes: rData.data || [],
         buses: bData.data?.map((b: any) => ({
           label: `${b.plateNumber}`,
           value: b._id
@@ -101,7 +101,6 @@ export default function TripTemplatesPage() {
     fetchAll();
   }, []);
 
-  /* ================= CRUD ================= */
 
   const handleSubmit = async (values: any) => {
     const url = editing
@@ -133,7 +132,6 @@ export default function TripTemplatesPage() {
     fetchAll();
   };
 
-  /* ================= TABLE ================= */
 
   const columns: ColumnsType<TripTemplate> = [
     {
@@ -195,7 +193,6 @@ export default function TripTemplatesPage() {
     }
   ];
 
-  /* ================= RENDER ================= */
 
   return (
     <div className="p-4 bg-gray-50 min-h-screen">

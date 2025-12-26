@@ -82,13 +82,12 @@ export default function TripCard({ trip }: TripCardProps) {
     };
     
     sessionStorage.setItem('booking_data', JSON.stringify(bookingData));
-    router.push('/booking/create');
+    router.push('/booking');
   };
 
   return (
     <div className={`bg-white rounded-lg shadow-sm border border-gray-200 transition-all duration-300 overflow-hidden mb-4 ${isExpanded ? 'ring-2 ring-blue-100 shadow-md' : 'hover:shadow-md'}`}>
       
-      {/* --- PHẦN 1: THÔNG TIN CHUYẾN XE (LUÔN HIỆN) --- */}
       <div className="p-4 flex flex-col sm:flex-row gap-4">
         
         <div className="w-full sm:w-[160px] h-[120px] relative flex-shrink-0 cursor-pointer" onClick={toggleExpand}>
@@ -154,7 +153,6 @@ export default function TripCard({ trip }: TripCardProps) {
           </div>
         </div>
 
-        {/* Cột hành động (Desktop) */}
         <div className="hidden sm:flex flex-col justify-between items-end min-w-[150px] text-right pl-4 border-l border-gray-100">
            <div>
               <div className="text-blue-600 font-bold text-xl">
@@ -180,7 +178,6 @@ export default function TripCard({ trip }: TripCardProps) {
         </div>
       </div>
 
-      {/* Footer Card (Tiện ích) */}
       {!isExpanded && (
         <div className="bg-gray-50 px-4 py-2 flex items-center justify-between text-xs text-gray-500 border-t border-gray-100">
             <div className="flex gap-4">
@@ -192,7 +189,6 @@ export default function TripCard({ trip }: TripCardProps) {
         </div>
       )}
 
-      {/* --- PHẦN 2: KHU VỰC ĐẶT VÉ (XỔ XUỐNG) --- */}
       {isExpanded && (
         <div className="border-t border-gray-200 animate-fadeIn">
             {step === 'seats' && (

@@ -6,6 +6,7 @@ import dayjs from 'dayjs';
 import customParseFormat from 'dayjs/plugin/customParseFormat';
 import { useEffect } from 'react';
 
+// Plugin cần thiết để parse chuỗi "HH:mm"
 dayjs.extend(customParseFormat);
 
 export default function TripTemplateModal({
@@ -18,32 +19,97 @@ export default function TripTemplateModal({
 }: any) {
   const [form] = Form.useForm();
 
+  /* ============================================================
+     LOGIC MAPPING DỮ LIỆU KHI MỞ MODAL
+     (Bao gồm cả logic sửa lỗi mất địa chỉ/timeOffset cũ)
+  ============================================================ */
   useEffect(() => {
-    if (open) {
-      if (initialValues) {
-        form.setFieldsValue({
-          ...initialValues,
-          departureTimeStr: initialValues.departureTimeStr 
-            ? dayjs(initialValues.departureTimeStr, 'HH:mm') 
-            : null,
-        });
-      } else {
-        form.resetFields();
-        form.setFieldsValue({
-          active: true,
-          daysOfWeek: [0, 1, 2, 3, 4, 5, 6] // Mặc định chạy cả tuần
-        });
-      }
-    }
-  }, [open, initialValues, form]);
+    if (!open) return;
 
+    if (initialValues) {
+      // 1. Xác định Route để lấy dữ liệu dự phòng (Fallback)
+      const routeId = initialValues.routeId?._id || initialValues.routeId;
+      
+      // Tìm object Route đầy đủ trong data (cần data.fullRoutes từ cha truyền vào)
+      const currentRoute = data.fullRoutes?.find((r: any) => r._id === routeId);
+      const routePickupDefaults = currentRoute?.defaultPickupPoints || [];
+      const routeDropoffDefaults = currentRoute?.defaultDropoffPoints || [];
+
+      // 2. Hàm hồi phục dữ liệu (Points)
+      const restorePoints = (templatePoints: any[], routeDefaults: any[]) => {
+        if (!Array.isArray(templatePoints)) return [];
+
+        return templatePoints.map((p, index) => {
+          // A. Khôi phục Địa chỉ (Nếu Template mất, lấy từ Route)
+          let address = p.address;
+          if (!address && routeDefaults[index]) {
+            address = routeDefaults[index].address;
+          }
+
+          // B. Khôi phục TimeOffset (Nếu Template mất, lấy từ Route)
+          let offset = p.timeOffset;
+          // Kiểm tra kỹ vì offset có thể là số 0
+          if ((offset === undefined || offset === null) && routeDefaults[index]) {
+            offset = routeDefaults[index].timeOffset;
+          }
+
+          // C. Map Surcharge (DB có thể lưu là surcharge, Form cần defaultSurcharge)
+          const surcharge = p.defaultSurcharge ?? p.surcharge ?? 0;
+
+          return {
+            name: p.name,
+            stationId: p.stationId || null,
+            address: address || '',       // Đã khôi phục
+            timeOffset: offset || 0,      // Đã khôi phục
+            defaultSurcharge: surcharge   // Đã map
+          };
+        });
+      };
+
+      // 3. Đẩy dữ liệu vào Form
+      form.setFieldsValue({
+        /* ===== ID FIELDS ===== */
+        companyId: initialValues.companyId?._id || initialValues.companyId,
+        routeId: routeId,
+        busId: initialValues.busId?._id || initialValues.busId,
+        driverId: initialValues.driverId?._id || initialValues.driverId,
+
+        /* ===== BASIC FIELDS ===== */
+        basePrice: initialValues.basePrice,
+        durationMinutes: initialValues.durationMinutes,
+        daysOfWeek: initialValues.daysOfWeek,
+        active: initialValues.active,
+
+        /* ===== TIME (String -> Dayjs) ===== */
+        departureTimeStr: initialValues.departureTimeStr
+          ? dayjs(initialValues.departureTimeStr, 'HH:mm')
+          : null,
+
+        /* ===== POINTS (Đã qua hàm hồi phục) ===== */
+        pickupPoints: restorePoints(initialValues.pickupPoints, routePickupDefaults),
+        dropoffPoints: restorePoints(initialValues.dropoffPoints, routeDropoffDefaults),
+      });
+
+    } else {
+      // TRƯỜNG HỢP TẠO MỚI
+      form.resetFields();
+      form.setFieldsValue({
+        active: true,
+        daysOfWeek: [0, 1, 2, 3, 4, 5, 6] // Mặc định chạy cả tuần
+      });
+    }
+  }, [open, initialValues, form, data.fullRoutes]);
+
+  /* =========================
+     SUBMIT HANDLER
+  ========================= */
   const handleFinish = (values: any) => {
     const payload = {
       ...values,
-      // Convert dayjs object về chuỗi "HH:mm" cho backend
-      departureTimeStr: values.departureTimeStr 
-        ? values.departureTimeStr.format('HH:mm') 
-        : null,
+      // Convert Dayjs ngược lại thành String "HH:mm"
+      departureTimeStr: values.departureTimeStr
+        ? values.departureTimeStr.format('HH:mm')
+        : null
     };
     onSubmit(payload);
   };
@@ -75,17 +141,18 @@ export default function TripTemplateModal({
                 format="HH:mm"
                 className="w-full"
                 minuteStep={5}
-                placeholder="Chọn giờ (VD: 07:30)"
+                placeholder="VD: 07:30"
               />
             </Form.Item>
           </Col>
+
           <Col span={12}>
             <Form.Item
               name="durationMinutes"
               label="Thời gian di chuyển (phút)"
               rules={[{ required: true, message: 'Nhập thời gian chạy' }]}
             >
-              <InputNumber min={1} className="w-full" placeholder="VD: 120" />
+              <InputNumber min={1} className="w-full" placeholder="VD: 180" />
             </Form.Item>
           </Col>
         </Row>
@@ -96,7 +163,7 @@ export default function TripTemplateModal({
           rules={[{ required: true, message: 'Chọn ít nhất 1 ngày' }]}
         >
           <Checkbox.Group
-            className="w-full grid grid-cols-7 gap-2"
+            className="grid grid-cols-7 gap-2"
             options={[
               { label: 'Thứ 2', value: 1 },
               { label: 'Thứ 3', value: 2 },
@@ -109,6 +176,7 @@ export default function TripTemplateModal({
           />
         </Form.Item>
 
+        {/* Gọi Form chung */}
         <TripBaseForm data={data} />
       </Form>
     </Modal>

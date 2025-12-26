@@ -8,12 +8,11 @@ import {
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
-// Interface cho dữ liệu điểm đón/trả
 interface Point {
   _id: string;
-  time: string; // ISO date string
+  time: string; 
   name: string;
-  address?: string; // Địa chỉ chi tiết (nếu có populate từ Station)
+  address?: string; 
   stationId?: {
     name: string;
     address: string;
@@ -24,10 +23,10 @@ interface Point {
 interface TripLocationProps {
   tripId: string;
   totalPrice: number;
-  selectedSeats: string[]; // Danh sách ghế đã chọn ở bước trước
+  selectedSeats: string[]; 
   onClose: () => void;
-  onBack: () => void; // Quay lại bước chọn ghế
-  onNext: (pickup: Point, dropoff: Point) => void; // Sang bước thanh toán
+  onBack: () => void;
+  onNext: (pickup: Point, dropoff: Point) => void; 
 }
 
 export default function TripLocationSelection({ 
@@ -101,38 +100,48 @@ export default function TripLocationSelection({
   const filteredDropoffs = filterPoints(dropoffPoints, searchDropoff);
 
   const renderPointItem = (point: Point, isPickup: boolean) => {
-    const isSelected = isPickup ? selectedPickup === point._id : selectedDropoff === point._id;
-    const timeStr = dayjs(point.time).format('HH:mm');
-    const dateStr = dayjs(point.time).format('DD/MM');
-    
-    // Lấy địa chỉ hiển thị (ưu tiên từ Station nếu có)
-    const displayAddress = typeof point.stationId === 'object' 
-        ? point.stationId?.address 
-        : "Địa điểm dọc đường";
+  const isSelected = isPickup
+    ? selectedPickup === point._id
+    : selectedDropoff === point._id;
 
-    return (
-      <div 
-        key={point._id}
-        className={`flex items-start gap-3 p-3 cursor-pointer hover:bg-blue-50 transition border-b border-gray-100 last:border-0 ${isSelected ? 'bg-blue-50' : ''}`}
-        onClick={() => isPickup ? setSelectedPickup(point._id) : setSelectedDropoff(point._id)}
-      >
-        <Radio checked={isSelected} className="mt-1" />
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-             <span className="font-bold text-gray-800 text-lg">{timeStr}</span>
-             <span className="text-xs text-gray-400">({dateStr})</span>
-             <span className="text-gray-300">•</span>
-             <span className="font-bold text-gray-700">{point.name}</span>
-          </div>
-          <div className="text-sm text-gray-500 mt-1">{displayAddress}</div>
+  const timeStr = dayjs(point.time).format('HH:mm');
+  const dateStr = dayjs(point.time).format('DD/MM');
+
+  const displayAddress =
+    point.address ||
+    (typeof point.stationId === 'object' ? point.stationId.address : '') ||
+    'Địa điểm dọc đường';
+
+  return (
+    <div
+      key={point._id}
+      className={`flex items-start gap-3 p-3 cursor-pointer hover:bg-blue-50 transition border-b border-gray-100 last:border-0 ${
+        isSelected ? 'bg-blue-50' : ''
+      }`}
+      onClick={() =>
+        isPickup
+          ? setSelectedPickup(point._id)
+          : setSelectedDropoff(point._id)
+      }
+    >
+      <Radio checked={isSelected} className="mt-1" />
+      <div className="flex-1">
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-gray-800 text-lg">{timeStr}</span>
+          <span className="text-xs text-gray-400">({dateStr})</span>
+          <span className="text-gray-300">•</span>
+          <span className="font-bold text-gray-700">{point.name}</span>
         </div>
-        <div className="flex flex-col items-center justify-center text-blue-600 cursor-pointer hover:underline min-w-[50px]">
-           <EnvironmentFilled className="text-lg mb-1" />
-           <span className="text-[10px]">Bản đồ</span>
-        </div>
+        <div className="text-sm text-gray-500 mt-1">{displayAddress}</div>
       </div>
-    );
-  };
+      <div className="flex flex-col items-center justify-center text-blue-600 min-w-[50px]">
+        <EnvironmentFilled className="text-lg mb-1" />
+        <span className="text-[10px]">Bản đồ</span>
+      </div>
+    </div>
+  );
+};
+
 
   return (
     <div className="bg-white animate-fadeIn flex flex-col h-full max-h-[80vh]">

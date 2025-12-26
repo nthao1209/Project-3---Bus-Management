@@ -3,26 +3,17 @@ import { dbConnect } from '@/lib/dbConnect';
 import { Trip, Company, Route, Bus } from '@/models/models';
 import { getCurrentUser } from '@/lib/auth';
 
-/**
- * Helper: Tính toán an toàn
- * Fix lỗi:
- * 1. Lọc bỏ điểm không có tên
- * 2. Chuyển đổi stationId rỗng thành null
- * 3. Đảm bảo timeOffset và Surcharge là số
- */
+
 const calculateTripPoints = (baseDate: Date, points: any[]) => {
   if (!Array.isArray(points)) return [];
   
-  // 1. Lọc các điểm rác (không có tên)
   const validPoints = points.filter(p => p && p.name && p.name.trim() !== '');
 
   return validPoints.map(p => {
     const offset = Number(p.timeOffset) || 0;
 
-    // 2. Tính toán thời gian (baseDate phải là Date object)
     const pointTime = new Date(baseDate.getTime() + offset * 60000);
 
-    // 3. Xử lý StationId: Tránh lỗi CastError nếu gửi lên chuỗi rỗng ""
     let safeStationId = p.stationId;
     if (!safeStationId || safeStationId === '') {
       safeStationId = null;
@@ -99,12 +90,10 @@ export async function POST(req: Request) {
       dropoffPoints   
     } = body;
 
-    // --- VALIDATION & CONVERSION QUAN TRỌNG ---
     if (!departureTime || !arrivalTime) {
       return NextResponse.json({ message: 'Thiếu giờ khởi hành hoặc giờ đến' }, { status: 400 });
     }
 
-    // Chuyển String thành Date Object để hàm getTime() hoạt động
     const depDate = new Date(departureTime);
     const arrDate = new Date(arrivalTime);
 
@@ -113,7 +102,6 @@ export async function POST(req: Request) {
     }
     // ------------------------------------------
 
-    // 1. Kiểm tra Company
     const company = await Company.findOne({
       _id: companyId,
       ownerId: session.userId
@@ -133,17 +121,13 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3. Tính toán Points (Truyền vào Date Object đã convert)
-    // Pickup tính theo giờ khởi hành
+   
     const finalPickupPoints =
       Array.isArray(pickupPoints) && pickupPoints.length > 0
         ? calculateTripPoints(depDate, pickupPoints)
         : calculateTripPoints(depDate, route.defaultPickupPoints || []);
 
-    // Dropoff tính theo giờ khởi hành (thường offset tính từ lúc xuất bến)
-    // LƯU Ý: Nếu offset dropoff của bạn tính từ "Lúc đến" thì dùng arrDate, 
-    // còn nếu tính từ "Lúc đi" (VD: điểm trả sau 4 tiếng kể từ lúc đi) thì dùng depDate.
-    // Ở đây tôi giữ nguyên logic của bạn là dùng arrDate (nếu offset=0 nghĩa là trả lúc đến bến cuối)
+    
     const finalDropoffPoints =
       Array.isArray(dropoffPoints) && dropoffPoints.length > 0
         ? calculateTripPoints(arrDate, dropoffPoints)
@@ -154,9 +138,9 @@ export async function POST(req: Request) {
       companyId,
       routeId,
       busId,
-      driverId: body.driverId || null, // Xử lý driver optional
-      departureTime: depDate, // Lưu Date Object
-      arrivalTime: arrDate,   // Lưu Date Object
+      driverId: body.driverId || null, 
+      departureTime: depDate, 
+      arrivalTime: arrDate,  
       basePrice: Number(basePrice),
       pickupPoints: finalPickupPoints,
       dropoffPoints: finalDropoffPoints,

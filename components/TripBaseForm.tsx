@@ -79,9 +79,7 @@ const PointRow = ({
           <InputNumber
             className="w-full"
             placeholder="Phụ thu"
-            formatter={(v) =>
-              `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-            }
+            formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
           />
         </Form.Item>
       </Col>
@@ -96,48 +94,45 @@ const PointRow = ({
   );
 };
 
-/* =========================
-   MAIN FORM
-========================= */
+// --- MAIN FORM ---
 export default function TripBaseForm({ data }: any) {
   const form = Form.useFormInstance();
 
-  /* ===== WATCH ===== */
+  // Watch fields
   const selectedCompanyId = Form.useWatch('companyId', form);
   const selectedRouteId = Form.useWatch('routeId', form);
   const pickupPointsData = Form.useWatch('pickupPoints', form);
   const dropoffPointsData = Form.useWatch('dropoffPoints', form);
 
-  /* ===== STATE ===== */
+  // States
   const [customPickup, setCustomPickup] = useState(false);
   const [customDropoff, setCustomDropoff] = useState(false);
-
   const [buses, setBuses] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [loadingBus, setLoadingBus] = useState(false);
   const [loadingDriver, setLoadingDriver] = useState(false);
-
   const [addrModalOpen, setAddrModalOpen] = useState(false);
   const [currentEditField, setCurrentEditField] = useState<any>(null);
 
-  /* ===== SYNC CHECKBOX ===== */
+  // 1. FIX: Tự động bật Checkbox khi có dữ liệu (Chế độ Sửa)
   useEffect(() => {
-    setCustomPickup(!!pickupPointsData?.length);
+    if (pickupPointsData && pickupPointsData.length > 0) setCustomPickup(true);
   }, [pickupPointsData]);
 
   useEffect(() => {
-    setCustomDropoff(!!dropoffPointsData?.length);
+    if (dropoffPointsData && dropoffPointsData.length > 0) setCustomDropoff(true);
   }, [dropoffPointsData]);
 
-  /* ===== FETCH BUS + DRIVER ===== */
+  // 2. Fetch Bus/Driver khi chọn Company
   useEffect(() => {
     if (!selectedCompanyId) {
       setBuses([]);
       setDrivers([]);
       return;
     }
-
-    form.setFieldsValue({ busId: null, driverId: null });
+    
+    // FIX: BỎ DÒNG RESET FORM Ở ĐÂY ĐỂ TRÁNH MẤT DỮ LIỆU KHI EDIT
+    // form.setFieldsValue({ busId: null, driverId: null }); <--- XÓA DÒNG NÀY
 
     setLoadingBus(true);
     fetch(`/api/owner/companies/${selectedCompanyId}/buses`)
@@ -150,10 +145,9 @@ export default function TripBaseForm({ data }: any) {
       .then(res => res.json())
       .then(res => setDrivers(res.data || []))
       .finally(() => setLoadingDriver(false));
-
   }, [selectedCompanyId]);
 
-  /* ===== HANDLERS ===== */
+  // Handlers
   const handleStationChange = (stationId: string, index: number, listName: string) => {
     const list = form.getFieldValue(listName) || [];
     const newList = [...list];
@@ -165,12 +159,14 @@ export default function TripBaseForm({ data }: any) {
     } else {
       const station = data.stations?.find((s: any) => s.value === stationId);
       if (station) {
-        newList[index].name = station.label;
-        newList[index].address = station.address;
-        newList[index].stationId = stationId;
+        newList[index] = {
+          ...newList[index],
+          stationId,
+          name: station.label,
+          address: station.address
+        };
       }
     }
-
     form.setFieldValue(listName, newList);
   };
 
@@ -180,48 +176,52 @@ export default function TripBaseForm({ data }: any) {
   };
 
   const handleAddressOk = (address: string) => {
-    const { index, list } = currentEditField;
-    const cur = form.getFieldValue(list) || [];
-    cur[index] = { ...cur[index], address, stationId: null };
-    form.setFieldValue(list, cur);
-    setAddrModalOpen(false);
-  };
-
-  const toggleCustom = (
-    checked: boolean,
-    listName: string,
-    setter: any,
-    routeField: string
-  ) => {
-    setter(checked);
-    if (!checked) return form.setFieldValue(listName, []);
-
-    const route = data.fullRoutes?.find((r: any) => r._id === selectedRouteId);
-    if (route?.[routeField]) {
-      form.setFieldValue(
-        listName,
-        route[routeField].map((p: any) => ({
-          name: p.name,
-          address: p.address,
-          timeOffset: p.timeOffset,
-          defaultSurcharge: p.defaultSurcharge,
-          stationId: null
-        }))
-      );
-    } else {
-      form.setFieldValue(listName, [{}]);
+    if (currentEditField) {
+      const { index, list } = currentEditField;
+      const cur = form.getFieldValue(list) || [];
+      const newList = [...cur];
+      newList[index] = { ...newList[index], address, stationId: null };
+      form.setFieldValue(list, newList);
+      setAddrModalOpen(false);
     }
   };
 
-  /* =========================
-     RENDER
-  ========================= */
+  const toggleCustom = (checked: boolean, listName: string, setter: any, routeField: string) => {
+    setter(checked);
+    if (!checked) return form.setFieldValue(listName, []); // Tắt thì xóa list
+
+    // Bật lên thì lấy default từ Route
+    const currentList = form.getFieldValue(listName);
+    if (!currentList || currentList.length === 0) {
+      const route = data.fullRoutes?.find((r: any) => r._id === selectedRouteId);
+      if (route && route[routeField]) {
+        form.setFieldValue(
+          listName,
+          route[routeField].map((p: any) => ({
+            name: p.name,
+            address: p.address,
+            timeOffset: p.timeOffset,
+            defaultSurcharge: p.defaultSurcharge,
+            stationId: p.stationId || null
+          }))
+        );
+      } else {
+        form.setFieldValue(listName, [{}]);
+      }
+    }
+  };
+
   return (
     <>
       <Row gutter={16}>
         <Col span={24}>
           <Form.Item name="companyId" label="Nhà xe" rules={[{ required: true }]}>
-            <Select options={data.companies} placeholder="Chọn nhà xe" />
+            <Select 
+              options={data.companies} 
+              placeholder="Chọn nhà xe" 
+              // Reset xe/tài xế KHI VÀ CHỈ KHI người dùng tự thay đổi nhà xe
+              onChange={() => form.setFieldsValue({ busId: null, driverId: null })} 
+            />
           </Form.Item>
         </Col>
 
@@ -268,21 +268,17 @@ export default function TripBaseForm({ data }: any) {
               className="w-full"
               min={0}
               addonAfter="VND"
-              formatter={(v) =>
-                `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-              }
+              formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
             />
           </Form.Item>
         </Col>
       </Row>
 
-      {/* PICKUP */}
+      {/* PICKUP POINTS */}
       <div className="mt-4 p-4 bg-gray-50 border rounded">
         <Checkbox
           checked={customPickup}
-          onChange={(e) =>
-            toggleCustom(e.target.checked, 'pickupPoints', setCustomPickup, 'defaultPickupPoints')
-          }
+          onChange={(e) => toggleCustom(e.target.checked, 'pickupPoints', setCustomPickup, 'defaultPickupPoints')}
           disabled={!selectedRouteId}
         >
           <strong>Tuỳ chỉnh điểm đón</strong>
@@ -292,9 +288,11 @@ export default function TripBaseForm({ data }: any) {
           <Form.List name="pickupPoints">
             {(fields, { add, remove }) => (
               <>
-                {fields.map((key, name) => (
+                {/* 3. FIX: Sửa lại cú pháp map đúng chuẩn Ant Design */}
+                {fields.map(({ key, name }) => (
                   <PointRow
                     key={key}
+                    name={name} // Truyền name (index) vào component con
                     remove={remove}
                     listName="pickupPoints"
                     data={data}
@@ -302,7 +300,7 @@ export default function TripBaseForm({ data }: any) {
                     onOpenAddress={openAddressModal}
                   />
                 ))}
-                <Button type="dashed" onClick={() => add()} icon={<PlusOutlined />}>
+                <Button type="dashed" onClick={() => add()} icon={<PlusOutlined />} className="mt-2">
                   Thêm điểm đón
                 </Button>
               </>
@@ -311,13 +309,11 @@ export default function TripBaseForm({ data }: any) {
         )}
       </div>
 
-      {/* DROPOFF */}
+      {/* DROPOFF POINTS */}
       <div className="mt-4 p-4 bg-gray-50 border rounded">
         <Checkbox
           checked={customDropoff}
-          onChange={(e) =>
-            toggleCustom(e.target.checked, 'dropoffPoints', setCustomDropoff, 'defaultDropoffPoints')
-          }
+          onChange={(e) => toggleCustom(e.target.checked, 'dropoffPoints', setCustomDropoff, 'defaultDropoffPoints')}
           disabled={!selectedRouteId}
         >
           <strong>Tuỳ chỉnh điểm trả</strong>
@@ -327,9 +323,10 @@ export default function TripBaseForm({ data }: any) {
           <Form.List name="dropoffPoints">
             {(fields, { add, remove }) => (
               <>
-                {fields.map((key, name) => (
+                {fields.map(({ key, name }) => (
                   <PointRow
                     key={key}
+                    name={name}
                     remove={remove}
                     listName="dropoffPoints"
                     data={data}
@@ -337,7 +334,7 @@ export default function TripBaseForm({ data }: any) {
                     onOpenAddress={openAddressModal}
                   />
                 ))}
-                <Button type="dashed" onClick={() => add()} icon={<PlusOutlined />}>
+                <Button type="dashed" onClick={() => add()} icon={<PlusOutlined />} className="mt-2">
                   Thêm điểm trả
                 </Button>
               </>

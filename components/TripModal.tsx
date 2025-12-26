@@ -13,47 +13,78 @@ export default function TripModal({
   onSubmit,
   data
 }: any) {
- const [form] = Form.useForm();
+
+// ... bên trong component TripModal
+const [form] = Form.useForm();
 
 useEffect(() => {
   if (open) {
     if (initialValues) {
-      console.log("Dữ liệu gốc từ API:", initialValues); // Debug xem có dữ liệu không
-
-      // 1. Xử lý ID: Lấy _id ra khỏi object (nếu có populate)
-      // Cú pháp `?.` giúp code không chết nếu null
+      // 1. Lấy thông tin cơ bản
       const companyId = initialValues.companyId?._id || initialValues.companyId;
       const routeId = initialValues.routeId?._id || initialValues.routeId;
       const busId = initialValues.busId?._id || initialValues.busId;
       const driverId = initialValues.driverId?._id || initialValues.driverId;
 
-      const departureTime = initialValues.departureTime ? dayjs(initialValues.departureTime) : null;
-      const arrivalTime = initialValues.arrivalTime ? dayjs(initialValues.arrivalTime) : null;
+      const depTime = initialValues.departureTime ? dayjs(initialValues.departureTime) : null;
+      const arrTime = initialValues.arrivalTime ? dayjs(initialValues.arrivalTime) : null;
 
-      const formatPoints = (points: any[]) => {
-        if (!Array.isArray(points)) return [];
-        return points.map(p => ({
-          ...p,
-          defaultSurcharge: p.surcharge ?? p.defaultSurcharge ?? 0, // Quan trọng
-          timeOffset: p.timeOffset || 0
-        }));
+      // 2. HÀM CHUẨN HÓA POINTS (QUAN TRỌNG NHẤT)
+      const formatPoints = (tripPoints: any[], routeDefaultPoints: any[] = []) => {
+        if (!Array.isArray(tripPoints)) return [];
+
+        return tripPoints.map((p, index) => {
+          // A. TÍNH OFFSET (Convert Date -> Phút)
+          let offset = 0;
+          if (p.time && depTime) {
+            const pointTime = dayjs(p.time);
+            // Tính khoảng cách thời gian so với giờ khởi hành
+            const diffMs = pointTime.diff(depTime);
+            offset = Math.round(diffMs / 60000); 
+          } else {
+            // Nếu không có time, lấy offset cũ
+            offset = p.timeOffset || 0;
+          }
+
+          // B. KHÔI PHỤC ĐỊA CHỈ (Nếu Trip mất địa chỉ, lấy từ Route đắp vào)
+          let address = p.address;
+          if (!address && routeDefaultPoints[index]) {
+              address = routeDefaultPoints[index].address;
+          }
+
+          // C. MAP SURCHARGE (DB là 'surcharge', Form là 'defaultSurcharge')
+          const surcharge = p.surcharge !== undefined ? p.surcharge : (p.defaultSurcharge || 0);
+
+          return {
+            ...p,
+            stationId: p.stationId || null,
+            name: p.name,
+            address: address || '',      // Điền địa chỉ
+            timeOffset: offset,          // Điền số phút
+            defaultSurcharge: surcharge  // Điền phụ thu
+          };
+        });
       };
 
-      // 4. Đẩy dữ liệu đã chuẩn hóa vào Form
+      // Lấy điểm mặc định từ Route để fallback địa chỉ
+      const routePickupDefaults = initialValues.routeId?.defaultPickupPoints || [];
+      const routeDropoffDefaults = initialValues.routeId?.defaultDropoffPoints || [];
+
+      // 3. ĐẨY VÀO FORM
       form.setFieldsValue({
-        ...initialValues, // Spread các trường cơ bản (như basePrice)
-        companyId,        // Ghi đè ID đã xử lý
+        ...initialValues,
+        companyId,
         routeId,
         busId,
         driverId,
-        departureTime,    // Ghi đè Date đã xử lý
-        arrivalTime,
-        pickupPoints: formatPoints(initialValues.pickupPoints),
-        dropoffPoints: formatPoints(initialValues.dropoffPoints),
+        departureTime: depTime,
+        arrivalTime: arrTime,
+        // Gọi hàm format ở đây
+        pickupPoints: formatPoints(initialValues.pickupPoints, routePickupDefaults),
+        dropoffPoints: formatPoints(initialValues.dropoffPoints, routeDropoffDefaults),
       });
 
     } else {
-      // Trường hợp tạo mới -> Reset form
       form.resetFields();
     }
   }

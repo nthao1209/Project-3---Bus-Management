@@ -1,3 +1,4 @@
+import { AddressModal } from '@/components/AddressModal';
 import mongoose, { Schema, Document, Model, Types } from 'mongoose';
 import { addRequestMeta } from 'next/dist/server/request-meta';
 
@@ -189,8 +190,20 @@ export interface Trip {
   arrivalTime: Date;
   basePrice: number;
   seatsStatus: Map<string, string>; // Map<Mã ghế, Trạng thái>
-  pickupPoints: TripPoint[];
-  dropoffPoints: TripPoint[];
+  pickupPoints?: {
+    stationId?: Types.ObjectId;
+    name: string;
+    address?: string;      
+    timeOffset: number;     
+    surcharge?: number;
+  }[];
+  dropoffPoints?: {
+    stationId?: Types.ObjectId;
+    name: string;
+    address?: string;       
+    timeOffset: number;     
+    surcharge?: number;
+  }[];
   status: 'scheduled' | 'running' | 'completed' | 'cancelled';
   createdAt?: Date;
   updatedAt?: Date;
@@ -268,13 +281,16 @@ const TripTemplateSchema = new Schema<TripTemplate>({
   pickupPoints: [{
       stationId: { type: Schema.Types.ObjectId, ref: 'Station' },
       name: String,
-      time: Date,
+      address: String,
+      time: Number,
       surcharge: { type: Number, default: 0 }
     }],
     dropoffPoints: [{
       stationId: { type: Schema.Types.ObjectId, ref: 'Station' },
       name: String,
-      time: Date
+      address: String,
+      time: Number,
+      surcharge: { type: Number, default: 0 }
     }],
 }, { timestamps: true });
 

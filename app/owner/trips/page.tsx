@@ -149,8 +149,9 @@ export default function OwnerTripsPage() {
   const handleGenerateTrips = async () => {
     const hide = message.loading('Đang sinh lịch từ mẫu...', 0);
     try {
-      const res = await fetch('/api/owner/trips/generate', {
+      const res = await fetch('/api/cron/generate-trips', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
       });
       const json = await res.json();
       
