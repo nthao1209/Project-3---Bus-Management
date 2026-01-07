@@ -9,9 +9,8 @@ import {
   PlusOutlined, EditOutlined, DeleteOutlined, 
   CarOutlined, WifiOutlined 
 } from '@ant-design/icons';
-import DataTable from '@/components/DataTable'; // Đảm bảo bạn đã có component này
+import DataTable from '@/components/DataTable';
 
-// Interface dữ liệu Xe
 interface Bus {
   _id: string;
   plateNumber: string;
@@ -20,12 +19,12 @@ interface Bus {
   seatLayout: {
     totalSeats: number;
     totalFloors: number;
+    schema: string[][]; // Thêm định nghĩa schema
   };
   amenities: string[];
   status: 'active' | 'maintenance';
 }
 
-// Danh sách tiện ích mẫu
 const AMENITIES_OPTIONS = [
   { label: 'Wifi', value: 'Wifi' },
   { label: 'Điều hòa', value: 'AC' },
@@ -36,7 +35,6 @@ const AMENITIES_OPTIONS = [
   { label: 'Màn hình TV', value: 'TV' },
 ];
 
-// Danh sách loại xe mẫu
 const BUS_TYPES = [
   'Giường nằm 40 chỗ',
   'Limousine 34 phòng',
@@ -46,42 +44,56 @@ const BUS_TYPES = [
   'Cung điện di động',
 ];
 
+// --- HÀM HỖ TRỢ SINH SƠ ĐỒ GHẾ MẶC ĐỊNH ---
+// Tạo ra mảng 2 chiều, mỗi hàng 4 ghế: [['01','02','03','04'], ['05'...]...]
+const generateDefaultSchema = (totalSeats: number) => {
+  const schema: string[][] = [];
+  let currentRow: string[] = [];
+  const seatsPerRow = 4; // Giả định mặc định 4 ghế/hàng
+
+  for (let i = 1; i <= totalSeats; i++) {
+    // Tạo mã ghế: 1 -> "01", 10 -> "10"
+    const seatCode = i < 10 ? `0${i}` : `${i}`;
+    currentRow.push(seatCode);
+
+    // Nếu đủ 1 hàng hoặc là ghế cuối cùng thì push vào schema
+    if (currentRow.length === seatsPerRow || i === totalSeats) {
+      schema.push(currentRow);
+      currentRow = [];
+    }
+  }
+  return schema;
+};
+
 export default function BusManagementPage() {
   const [buses, setBuses] = useState<Bus[]>([]);
   const [companies, setCompanies] = useState<{label: string, value: string}[]>([]);
   const [loading, setLoading] = useState(false);
   
-  // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBus, setEditingBus] = useState<Bus | null>(null);
   const [form] = Form.useForm();
 
-  // 1. Fetch dữ liệu Xe và Công ty
+  // 1. Fetch dữ liệu
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Gọi API lấy danh sách xe (API GET bạn cung cấp)
-      const resBuses = await fetch('/api/owner/buses');
+      const [resBuses, resCompanies] = await Promise.all([
+        fetch('/api/owner/buses'),
+        fetch('/api/owner/companies')
+      ]);
+      
       const dataBuses = await resBuses.json();
-
-      // Gọi API lấy danh sách công ty (Để đổ vào Dropdown chọn công ty)
-      // Giả định bạn đã có API này từ các bước trước (/api/company/me hoặc /api/owner/companies)
-      const resCompanies = await fetch('/api/owner/companies'); 
       const dataCompanies = await resCompanies.json();
 
       if (dataBuses.success) setBuses(dataBuses.data);
       
-      // Xử lý dữ liệu công ty cho Select
       if (dataCompanies.success) {
-        // API /api/company thường trả về 1 object (nếu /me) hoặc mảng.
-        // Logic dưới đây xử lý linh hoạt
         const comps = Array.isArray(dataCompanies.data) 
             ? dataCompanies.data 
             : [dataCompanies.data];
-            
         setCompanies(comps.map((c: any) => ({ label: c.name, value: c._id })));
       }
-
     } catch (error) {
       message.error('Không thể tải dữ liệu');
     } finally {
@@ -93,16 +105,20 @@ export default function BusManagementPage() {
     fetchData();
   }, []);
 
-  // 2. Xử lý Submit (Thêm hoặc Sửa)
+  // 2. Xử lý Submit (QUAN TRỌNG: Đã sửa phần tạo schema)
   const handleSubmit = async (values: any) => {
     try {
-      // Chuẩn bị dữ liệu đúng format schema
+      const totalSeats = values.totalSeats;
+      
+      // Tự động sinh sơ đồ ghế nếu người dùng chưa vẽ (hiện tại chưa có tool vẽ nên luôn auto)
+      const generatedSchema = generateDefaultSchema(totalSeats);
+
       const payload = {
         ...values,
         seatLayout: {
-          totalSeats: values.totalSeats,
+          totalSeats: totalSeats,
           totalFloors: values.totalFloors || 1,
-          schema: {} // Mặc định schema rỗng, sẽ làm chức năng vẽ sơ đồ sau
+          schema: generatedSchema // <--- Gửi schema đầy đủ lên Server
         }
       };
 
@@ -122,7 +138,7 @@ export default function BusManagementPage() {
         setIsModalOpen(false);
         form.resetFields();
         setEditingBus(null);
-        fetchData(); // Reload lại bảng
+        fetchData();
       } else {
         message.error(json.message || 'Có lỗi xảy ra');
       }
@@ -131,7 +147,6 @@ export default function BusManagementPage() {
     }
   };
 
-  // 3. Xử lý Xóa
   const handleDelete = async (id: string) => {
     try {
       const res = await fetch(`/api/owner/buses/${id}`, { method: 'DELETE' });
@@ -146,7 +161,6 @@ export default function BusManagementPage() {
     }
   };
 
-  // 4. Mở Modal Sửa
   const openEditModal = (record: Bus) => {
     setEditingBus(record);
     form.setFieldsValue({
@@ -161,19 +175,18 @@ export default function BusManagementPage() {
     setIsModalOpen(true);
   };
 
-  // 5. Cấu hình Cột Bảng
   const columns = [
     {
       title: 'Biển số',
       dataIndex: 'plateNumber',
       key: 'plateNumber',
-      render: (text: string) => <Tag color="geekblue" className="font-bold text-sm">{text}</Tag>
+      render: (text: string) => <Tag color="geekblue" className="font-bold">{text}</Tag>
     },
     {
       title: 'Nhà xe',
       dataIndex: 'companyId',
       key: 'companyId',
-      render: (company: any) => <span className="font-semibold text-gray-700">{company?.name || '---'}</span>
+      render: (company: any) => <span className="text-gray-700">{company?.name || '---'}</span>
     },
     {
       title: 'Loại xe',
@@ -181,10 +194,18 @@ export default function BusManagementPage() {
       key: 'type',
     },
     {
-      title: 'Số ghế',
-      dataIndex: ['seatLayout', 'totalSeats'],
-      key: 'totalSeats',
-      render: (seats: number) => <span className="font-medium">{seats} ghế</span>
+      title: 'Sơ đồ',
+      dataIndex: 'seatLayout',
+      key: 'seatLayout',
+      render: (layout: any) => (
+        <div className="text-xs">
+           <div>Active: {layout?.totalSeats} ghế</div>
+           {/* Hiển thị nhanh trạng thái schema */}
+           <div className="text-gray-400">
+             {layout?.schema?.length > 0 ? '(Đã có sơ đồ)' : '(Chưa có sơ đồ)'}
+           </div>
+        </div>
+      )
     },
     {
       title: 'Tiện ích',
@@ -193,7 +214,7 @@ export default function BusManagementPage() {
       render: (items: string[]) => (
         <div className="flex flex-wrap gap-1 max-w-[200px]">
           {items?.map((item, idx) => (
-            <Tag key={idx} className="text-[10px] m-0 bg-gray-100 border-gray-300">{item}</Tag>
+            <Tag key={idx} className="text-[10px] m-0">{item}</Tag>
           ))}
         </div>
       )
@@ -209,7 +230,7 @@ export default function BusManagementPage() {
       )
     },
     {
-      title: 'Hành động',
+      title: '',
       key: 'action',
       render: (_: any, record: Bus) => (
         <Space>
@@ -222,7 +243,6 @@ export default function BusManagementPage() {
           </Tooltip>
           <Popconfirm 
             title="Xóa xe này?" 
-            description="Hành động này không thể hoàn tác"
             onConfirm={() => handleDelete(record._id)}
             okText="Xóa"
             cancelText="Hủy"
@@ -239,7 +259,7 @@ export default function BusManagementPage() {
       <div className="flex justify-between items-center mb-6">
         <div>
            <h2 className="text-xl font-bold text-gray-800">Quản lý Đội xe</h2>
-           <p className="text-gray-500 text-sm">Quản lý danh sách xe, biển số và tiện ích</p>
+           <p className="text-gray-500 text-sm">Quản lý danh sách xe và cấu hình ghế</p>
         </div>
         <Button 
           type="primary" 
@@ -248,7 +268,6 @@ export default function BusManagementPage() {
           onClick={() => {
             setEditingBus(null);
             form.resetFields();
-            // Nếu chỉ có 1 công ty, tự động chọn luôn
             if (companies.length === 1) {
                 form.setFieldValue('companyId', companies[0].value);
             }
@@ -265,11 +284,10 @@ export default function BusManagementPage() {
         dataSource={buses}
         loading={loading}
         searchFields={['plateNumber', 'type']}
-        searchPlaceholder="Tìm theo biển số hoặc loại xe..."
+        searchPlaceholder="Tìm biển số..."
         pagination={{ pageSize: 10 }}
       />
 
-      {/* Modal Form */}
       <Modal
         title={
             <div className="flex items-center gap-2">
@@ -282,7 +300,7 @@ export default function BusManagementPage() {
         onOk={form.submit}
         width={700}
         okText={editingBus ? "Cập nhật" : "Thêm mới"}
-        cancelText="Hủy bỏ"
+        cancelText="Hủy"
       >
         <Form 
             form={form} 
@@ -290,24 +308,24 @@ export default function BusManagementPage() {
             onFinish={handleSubmit}
             initialValues={{ 
                 status: 'active',
-                totalFloors: 1 
+                totalFloors: 1,
+                totalSeats: 40
             }}
         >
           <div className="grid grid-cols-2 gap-4">
-            {/* Cột 1 */}
             <div>
                 <Form.Item 
                     name="companyId" 
-                    label="Thuộc Nhà xe" 
+                    label="Nhà xe" 
                     rules={[{ required: true, message: 'Vui lòng chọn nhà xe' }]}
                 >
-                    <Select options={companies} placeholder="Chọn nhà xe quản lý" />
+                    <Select options={companies} placeholder="Chọn nhà xe" />
                 </Form.Item>
 
                 <Form.Item 
                     name="plateNumber" 
-                    label="Biển số xe" 
-                    rules={[{ required: true, message: 'Nhập biển số xe' }]}
+                    label="Biển số" 
+                    rules={[{ required: true, message: 'Nhập biển số' }]}
                 >
                     <Input placeholder="Vd: 29B-123.45" style={{ textTransform: 'uppercase' }} />
                 </Form.Item>
@@ -315,11 +333,12 @@ export default function BusManagementPage() {
                 <div className="flex gap-4">
                     <Form.Item 
                         name="totalSeats" 
-                        label="Tổng số ghế" 
+                        label="Số ghế" 
                         className="w-full"
                         rules={[{ required: true, message: 'Nhập số ghế' }]}
+                        help="Hệ thống sẽ tự động tạo sơ đồ ghế mặc định"
                     >
-                        <InputNumber min={4} max={60} className="w-full" placeholder="Vd: 40" />
+                        <InputNumber min={4} max={60} className="w-full" />
                     </Form.Item>
                     <Form.Item 
                         name="totalFloors" 
@@ -331,7 +350,6 @@ export default function BusManagementPage() {
                 </div>
             </div>
 
-            {/* Cột 2 */}
             <div>
                 <Form.Item 
                     name="type" 
@@ -340,29 +358,28 @@ export default function BusManagementPage() {
                 >
                     <Select 
                         showSearch 
-                        placeholder="Chọn hoặc nhập loại xe"
+                        placeholder="Chọn loại xe"
                         options={BUS_TYPES.map(t => ({ label: t, value: t }))}
                     />
                 </Form.Item>
 
-                <Form.Item name="status" label="Trạng thái hoạt động">
+                <Form.Item name="status" label="Trạng thái">
                     <Select>
-                        <Select.Option value="active">Active (Đang hoạt động)</Select.Option>
-                        <Select.Option value="maintenance">Maintenance (Bảo trì)</Select.Option>
+                        <Select.Option value="active">Đang hoạt động</Select.Option>
+                        <Select.Option value="maintenance">Bảo trì</Select.Option>
                     </Select>
+                </Form.Item>
+                
+                <Form.Item name="amenities" label="Tiện ích">
+                  <Select 
+                      mode="multiple" 
+                      placeholder="Chọn tiện ích"
+                      options={AMENITIES_OPTIONS}
+                      maxTagCount="responsive"
+                  />
                 </Form.Item>
             </div>
           </div>
-
-          <Form.Item name="amenities" label="Tiện ích trên xe">
-            <Select 
-                mode="multiple" 
-                placeholder="Chọn các tiện ích"
-                options={AMENITIES_OPTIONS}
-                suffixIcon={<WifiOutlined />}
-            />
-          </Form.Item>
-
         </Form>
       </Modal>
     </div>

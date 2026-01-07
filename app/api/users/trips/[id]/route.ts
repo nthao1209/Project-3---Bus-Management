@@ -39,11 +39,21 @@ export async function GET(
       trip.dropoffPoints?.length > 0
         ? trip.dropoffPoints
         : trip.routeId?.defaultDropoffPoints || [];
+    const tripObj = trip.toObject();
+
+    const seatsStatusObj: Record<string, any> = {};
+    if (trip.seatsStatus) {
+      for (const [k, v] of trip.seatsStatus.entries()) {
+        seatsStatusObj[k] = v;
+      }
+    }
+
+tripObj.seatsStatus = seatsStatusObj;
 
     return NextResponse.json({
       success: true,
       data: {
-              ...trip.toObject(),
+              ...tripObj,
               pickupPoints,
               dropoffPoints
             }

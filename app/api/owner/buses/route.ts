@@ -9,13 +9,11 @@ export async function GET() {
     const session = await getCurrentUser();
     if (!session) return NextResponse.json({ message: 'Chưa xác thực' }, { status: 401 });
 
-    // Bước 1: Lấy danh sách các Công ty mà user này sở hữu
     const companies = await Company.find({ ownerId: session.userId }).select('_id');
     const companyIds = companies.map(c => c._id);
 
-    // Bước 2: Tìm tất cả xe thuộc các công ty đó
     const buses = await Bus.find({ companyId: { $in: companyIds } })
-      .populate('companyId', 'name') // (Tuỳ chọn) Lấy thêm tên nhà xe để hiển thị
+      .populate('companyId', 'name') 
       .sort({ createdAt: -1 });
 
     return NextResponse.json({ success: true, data: buses });
@@ -31,21 +29,42 @@ export async function POST(req: Request) {
     if (!session) return NextResponse.json({ message: 'Chưa xác thực' }, { status: 401 });
 
     const body = await req.json();
-    const { companyId, plateNumber, type, seatLayout, amenities, status } = body;
+    const {
+        companyId,
+        plateNumber,
+        type,
+        amenities,
+        status,
+        seatLayout
+      } = body;
 
-    // Validate: Kiểm tra xem user có phải chủ sở hữu của companyId này không
+    const seatsData = seatLayout?.schema || seatLayout?.seats;
+
+    if (!seatLayout || !seatsData || !seatsData.length) {
+        return NextResponse.json(
+          { message: 'Cần định nghĩa sơ đồ ghế (seats/schema)' },
+          { status: 400 }
+        );
+      }
+
     const company = await Company.findOne({ _id: companyId, ownerId: session.userId });
     
     if (!company) {
       return NextResponse.json({ message: 'Nhà xe không tồn tại hoặc bạn không có quyền' }, { status: 403 });
     }
 
+    const finalSeatLayout = {
+        totalSeats: seatLayout.totalSeats,
+        totalFloors: seatLayout.totalFloors || 1,
+        schema: seatsData 
+    };
+
     const newBus = await Bus.create({ 
       companyId, 
       plateNumber, 
       type, 
-      seatLayout, 
-      amenities, 
+      amenities,
+      seatLayout: finalSeatLayout, 
       status 
     });
 

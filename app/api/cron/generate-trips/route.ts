@@ -1,6 +1,42 @@
 import { NextResponse } from 'next/server';
 import { dbConnect } from '@/lib/dbConnect';
-import { Trip, TripTemplate } from '@/models/models';
+import { Trip, TripTemplate, Bus } from '@/models/models';
+
+const generateSeatsStatus = (seatLayout: any) => {
+  const seats: Record<string, any> = {};
+
+  if (!seatLayout) {
+    console.warn("⚠️ generateSeatsStatus: seatLayout is null/undefined");
+    return seats;
+  }
+  
+  // Kiểm tra xem schema có tồn tại và là Array không
+  if (!seatLayout.schema || !Array.isArray(seatLayout.schema)) {
+    console.warn("⚠️ generateSeatsStatus: seatLayout.schema is missing or not an array", JSON.stringify(seatLayout));
+    return seats;
+  }
+
+  seatLayout.schema.forEach((row: any[]) => {
+    if (Array.isArray(row)) {
+      row.forEach(seatCode => {
+        // Chỉ bỏ qua nếu là null, undefined hoặc chuỗi rỗng (chấp nhận số 0)
+        if (seatCode === null || seatCode === undefined || seatCode === '') return;
+        
+        // Tạo object đúng cấu trúc SeatInfoSchema
+        seats[String(seatCode)] = { 
+          status: 'available',
+          bookingId: undefined, // Explicitly undefined is fine
+          holdExpireAt: undefined
+        };
+      });
+    }
+  });
+
+  // Log kết quả cuối cùng trước khi lưu
+  console.log(`✅ Generated ${Object.keys(seats).length} seats`);
+  return seats;
+};
+
 
 const createDateFromTime = (baseDate: Date, timeStr: string) => {
   if (!timeStr || typeof timeStr !== 'string') throw new Error('Invalid timeStr');
@@ -98,6 +134,11 @@ export async function POST(req: Request) {
         const finalPickupPoints = calculateInstancePoints(departureTime, pickupPoints);
         const finalDropoffPoints = calculateInstancePoints(departureTime, dropoffPoints);
 
+        const bus = await Bus.findById(template.busId).lean();
+        if (!bus) continue;
+
+        const seatsStatus = generateSeatsStatus(bus.seatLayout);
+
         // 6. Tạo Trip
         await Trip.create({
           companyId: template.companyId,
@@ -110,7 +151,7 @@ export async function POST(req: Request) {
           pickupPoints: finalPickupPoints,
           dropoffPoints: finalDropoffPoints,
           status: 'scheduled',
-          seatsStatus: {}
+          seatsStatus,
         });
 
         createdCount++;

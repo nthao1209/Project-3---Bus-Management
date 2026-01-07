@@ -7,7 +7,7 @@ export const proxy = (request: NextRequest) => {
   const path = request.nextUrl.pathname;
 
   // === Các trang public không bị redirect ===
-  const publicPaths = ['/auth/login', '/auth/register', '/favicon.ico'];
+  const publicPaths = ['/auth/login', '/auth/register', '/payment/vnpay-return'];
   if (publicPaths.includes(path)) {
     // Nếu đã login thì redirect ra dashboard tương ứng
     if (token) {

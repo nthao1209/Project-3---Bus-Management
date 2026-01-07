@@ -28,7 +28,8 @@ export default function LoginPage() {
       }
 
       message.success('Đăng nhập thành công!');
-
+      // notify client components that auth state changed so they can re-fetch immediately
+      window.dispatchEvent(new Event('authChanged'));
       localStorage.setItem('user_info', JSON.stringify(data.user));
 
       switch (data.user.role) {

@@ -19,15 +19,10 @@ export default function TripTemplateModal({
 }: any) {
   const [form] = Form.useForm();
 
-  /* ============================================================
-     LOGIC MAPPING DỮ LIỆU KHI MỞ MODAL
-     (Bao gồm cả logic sửa lỗi mất địa chỉ/timeOffset cũ)
-  ============================================================ */
   useEffect(() => {
     if (!open) return;
 
     if (initialValues) {
-      // 1. Xác định Route để lấy dữ liệu dự phòng (Fallback)
       const routeId = initialValues.routeId?._id || initialValues.routeId;
       
       // Tìm object Route đầy đủ trong data (cần data.fullRoutes từ cha truyền vào)
@@ -40,7 +35,6 @@ export default function TripTemplateModal({
         if (!Array.isArray(templatePoints)) return [];
 
         return templatePoints.map((p, index) => {
-          // A. Khôi phục Địa chỉ (Nếu Template mất, lấy từ Route)
           let address = p.address;
           if (!address && routeDefaults[index]) {
             address = routeDefaults[index].address;
@@ -48,12 +42,10 @@ export default function TripTemplateModal({
 
           // B. Khôi phục TimeOffset (Nếu Template mất, lấy từ Route)
           let offset = p.timeOffset;
-          // Kiểm tra kỹ vì offset có thể là số 0
           if ((offset === undefined || offset === null) && routeDefaults[index]) {
             offset = routeDefaults[index].timeOffset;
           }
 
-          // C. Map Surcharge (DB có thể lưu là surcharge, Form cần defaultSurcharge)
           const surcharge = p.defaultSurcharge ?? p.surcharge ?? 0;
 
           return {

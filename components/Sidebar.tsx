@@ -40,7 +40,6 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
   const [role, setRole] = useState<Role | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ LẤY ROLE TỪ COOKIE → /api/auth/me
   useEffect(() => {
     const fetchMe = async () => {
       try {

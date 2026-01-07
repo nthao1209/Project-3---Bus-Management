@@ -48,20 +48,21 @@ export async function GET(req: Request) {
     }
 
 
-    //   3. FIX DATE (UTC SAFE)
-    const searchDate = new Date(dateStr + 'T00:00:00.000Z');
+    //   3. FIX DATE (LOCAL DAY IN VIETNAM TZ)
+    // Treat the provided `dateStr` (YYYY-MM-DD) as a local date in Vietnam (UTC+7).
+    // Compute the UTC range that covers that whole local day so we include early-morning trips.
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const VIETNAM_OFFSET_MINUTES = 7 * 60; // +7 hours
 
-    const startOfDay = new Date(searchDate);
-    startOfDay.setUTCHours(0, 0, 0, 0);
-
-    const endOfDay = new Date(searchDate);
-    endOfDay.setUTCHours(23, 59, 59, 999);
+    // local midnight (Asia/Ho_Chi_Minh) expressed in UTC
+    const startOfDayUTC = new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - VIETNAM_OFFSET_MINUTES * 60 * 1000);
+    const endOfDayUTC = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999) - VIETNAM_OFFSET_MINUTES * 60 * 1000);
 
      //  4. FIND TRIPS
     
     const trips = await Trip.find({
       routeId: { $in: routes.map(r => r._id) },
-      departureTime: { $gte: startOfDay, $lte: endOfDay },
+      departureTime: { $gte: startOfDayUTC, $lte: endOfDayUTC },
       status: { $in: ['scheduled', 'running'] }
     })
     .populate('companyId', 'name')
@@ -76,8 +77,11 @@ export async function GET(req: Request) {
       const totalSeats =
         trip.busId?.seatLayout?.totalSeats ?? 40;
 
-      const bookedSeats = 
-        trip.seatsStatus ? Object.keys(trip.seatsStatus).length : 0; 
+      // Count only seats with status === 'booked' to determine available seats
+      let bookedSeats = 0;
+      if (trip.seatsStatus && typeof trip.seatsStatus === 'object') {
+        bookedSeats = Object.values(trip.seatsStatus).filter((s: any) => s?.status === 'booked').length;
+      }
 
       return {
         _id: trip._id,
@@ -88,19 +92,19 @@ export async function GET(req: Request) {
         durationMinutes: trip.routeId?.durationMinutes,
         basePrice: trip.basePrice,
         availableSeats: Math.max(totalSeats - bookedSeats, 0),
-        pickupPoints: trip.pickupPoints.map((p: any) => ({
-          id: p._id, 
-          name: p.name,
-          address: p.address,
-          time: p.time, 
-          surcharge: p.surcharge
-        })),
-        dropoffPoints: trip.dropoffPoints.map((p: any) => ({
+        pickupPoints: (trip.pickupPoints || []).map((p: any) => ({
           id: p._id,
           name: p.name,
           address: p.address,
-          time: p.time, 
-          surcharge: p.surcharge 
+          time: p.time,
+          surcharge: p.surcharge
+        })),
+        dropoffPoints: (trip.dropoffPoints || []).map((p: any) => ({
+          id: p._id,
+          name: p.name,
+          address: p.address,
+          time: p.time,
+          surcharge: p.surcharge
         }))
       };
     });

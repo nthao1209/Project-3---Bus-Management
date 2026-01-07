@@ -1,6 +1,4 @@
-import { AddressModal } from '@/components/AddressModal';
-import mongoose, { Schema, Document, Model, Types } from 'mongoose';
-import { addRequestMeta } from 'next/dist/server/request-meta';
+import mongoose, { Schema, Types } from 'mongoose';
 
 
 export interface Station {
@@ -180,49 +178,85 @@ interface TripPoint {
   surcharge?: number;
 }
 
+type SeatStatus = 'available' | 'holding' | 'booked';
+
+interface SeatInfo {
+  status: SeatStatus;
+  bookingId?: Types.ObjectId;
+  holdExpireAt?: Date;
+}
+
 export interface Trip {
   companyId: Types.ObjectId;
   routeId: Types.ObjectId;
   busId: Types.ObjectId;
   driverId?: Types.ObjectId;
   assistantId?: Types.ObjectId;
+
   departureTime: Date;
   arrivalTime: Date;
   basePrice: number;
-  seatsStatus: Map<string, string>; // Map<Mã ghế, Trạng thái>
+
+  seatsStatus: Map<string, SeatInfo>;
+
   pickupPoints?: {
     stationId?: Types.ObjectId;
     name: string;
-    address?: string;      
-    timeOffset: number;     
+    address?: string;
+    time: Date;
     surcharge?: number;
   }[];
+
   dropoffPoints?: {
     stationId?: Types.ObjectId;
     name: string;
-    address?: string;       
-    timeOffset: number;     
+    address?: string;
+    time: Date;
     surcharge?: number;
   }[];
+
   status: 'scheduled' | 'running' | 'completed' | 'cancelled';
   createdAt?: Date;
   updatedAt?: Date;
 }
 
+
+const SeatInfoSchema = new Schema(
+  {
+    status: {
+      type: String,
+      enum: ['available', 'holding', 'booked'],
+      required: true
+    },
+    bookingId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Booking'
+    },
+    holdExpireAt: {
+      type: Date
+    }
+  },
+  { _id: false }
+);
+
 const TripSchema = new Schema<Trip>({
   companyId: { type: Schema.Types.ObjectId, ref: 'Company', required: true },
   routeId: { type: Schema.Types.ObjectId, ref: 'Route', required: true },
   busId: { type: Schema.Types.ObjectId, ref: 'Bus', required: true },
-  driverId: { type: Schema.Types.ObjectId, ref: 'User' }, 
+
+  driverId: { type: Schema.Types.ObjectId, ref: 'User' },
   assistantId: { type: Schema.Types.ObjectId, ref: 'User' },
+
   departureTime: { type: Date, required: true, index: true },
   arrivalTime: { type: Date, required: true },
   basePrice: { type: Number, required: true },
+
   seatsStatus: {
     type: Map,
-    of: String,
-    default: {} 
+    of: SeatInfoSchema,
+    default: {}
   },
+
   pickupPoints: [{
     stationId: { type: Schema.Types.ObjectId, ref: 'Station' },
     name: String,
@@ -230,19 +264,22 @@ const TripSchema = new Schema<Trip>({
     time: Date,
     surcharge: { type: Number, default: 0 }
   }],
+
   dropoffPoints: [{
     stationId: { type: Schema.Types.ObjectId, ref: 'Station' },
     name: String,
     address: String,
     time: Date,
-    surcharge: {type: Number, default: 0}
+    surcharge: { type: Number, default: 0 }
   }],
-  status: { 
-    type: String, 
-    enum: ['scheduled', 'running', 'completed', 'cancelled'], 
-    default: 'scheduled' 
+
+  status: {
+    type: String,
+    enum: ['scheduled', 'running', 'completed', 'cancelled'],
+    default: 'scheduled'
   }
 }, { timestamps: true });
+
 
 TripSchema.index({ routeId: 1, departureTime: 1 });
 
@@ -356,8 +393,12 @@ export interface Payment {
   bookingId: Types.ObjectId;
   userId?: Types.ObjectId;
   amount: number;
-  method: 'qr_code' | 'credit_card' | 'cash';
-  status: 'pending' | 'success' | 'failed';
+ method: { 
+    type: String, 
+    enum: ['offline', 'vnpay'], 
+    default: 'vnpay' 
+  };
+   status: 'pending' | 'success' | 'failed';
   transactionId?: string;
   bankCode?: string;
   paymentDate?: Date;
@@ -370,7 +411,7 @@ const PaymentSchema = new Schema<Payment>({
   bookingId: { type: Schema.Types.ObjectId, ref: 'Booking', required: true },
   userId: { type: Schema.Types.ObjectId, ref: 'User' },
   amount: { type: Number, required: true },
-  method: { type: String, enum: ['qr_code', 'credit_card', 'cash'], default: 'qr_code' },
+  method: { type: String, enum: ['offline', 'vnpay'], default: 'vnpay' },
   status: { type: String, enum: ['pending', 'success', 'failed'], default: 'pending' },
   transactionId: { type: String },
   bankCode: { type: String },

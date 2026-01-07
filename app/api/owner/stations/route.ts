@@ -7,15 +7,35 @@ import { getCurrentUser } from '@/lib/auth';
 export async function GET(req: Request) {
   try {
     await dbConnect();
-    const session = await getCurrentUser();
-    if (!session) return NextResponse.json({ message: 'Chưa xác thực' }, { status: 401 });
 
-    const stations = await Station.find({
-      $or: [
-        { status: 'active' },
-        { status: 'pending', creatorId: session.userId }
-      ]
-    }).sort({ name: 1 });
+    // Allow public read of active stations (used by the public search UI)
+    const { searchParams } = new URL(req.url);
+    const statusParam = searchParams.get('status'); // e.g. 'active'
+
+    const session = await getCurrentUser();
+
+    // If client is unauthenticated and requests something other than public active list, block
+    if (!session && statusParam !== 'active') {
+      return NextResponse.json({ message: 'Chưa xác thực' }, { status: 401 });
+    }
+
+    // Build filter: if unauthenticated & requesting active, return only active stations
+    // otherwise allow owner to see their pending stations too
+    let filter: any;
+    if (!session && statusParam === 'active') {
+      filter = { status: 'active' };
+    } else {
+      filter = {
+        $or: [
+          { status: 'active' },
+          { status: 'pending', creatorId: session?.userId }
+        ]
+      };
+      // If explicit status param provided, respect it (e.g. ?status=active)
+      if (statusParam) filter = { status: statusParam };
+    }
+
+    const stations = await Station.find(filter).sort({ name: 1 });
     
     return NextResponse.json({ success: true, data: stations });
   } catch (error: any) {

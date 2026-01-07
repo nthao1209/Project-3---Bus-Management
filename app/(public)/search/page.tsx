@@ -18,7 +18,6 @@ interface TripData {
   arrivalStation: string;
   basePrice: number;
   availableSeats: number;
-  // Các field khác nếu có
 }
 
 function SearchContent() {

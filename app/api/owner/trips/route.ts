@@ -4,6 +4,42 @@ import { Trip, Company, Route, Bus } from '@/models/models';
 import { getCurrentUser } from '@/lib/auth';
 
 
+const generateSeatsStatus = (seatLayout: any) => {
+  const seats: Record<string, any> = {};
+
+  // Log để kiểm tra xem Bus lấy từ DB có dữ liệu không
+  if (!seatLayout) {
+    console.warn("⚠️ generateSeatsStatus: seatLayout is null/undefined");
+    return seats;
+  }
+  
+  // Kiểm tra xem schema có tồn tại và là Array không
+  if (!seatLayout.schema || !Array.isArray(seatLayout.schema)) {
+    console.warn("⚠️ generateSeatsStatus: seatLayout.schema is missing or not an array", JSON.stringify(seatLayout));
+    return seats;
+  }
+
+  seatLayout.schema.forEach((row: any[]) => {
+    if (Array.isArray(row)) {
+      row.forEach(seatCode => {
+        // Chỉ bỏ qua nếu là null, undefined hoặc chuỗi rỗng (chấp nhận số 0)
+        if (seatCode === null || seatCode === undefined || seatCode === '') return;
+        
+        // Tạo object đúng cấu trúc SeatInfoSchema
+        seats[String(seatCode)] = { 
+          status: 'available',
+          bookingId: undefined, // Explicitly undefined is fine
+          holdExpireAt: undefined
+        };
+      });
+    }
+  });
+
+  console.log(`✅ Generated ${Object.keys(seats).length} seats`);
+  return seats;
+};
+
+
 const calculateTripPoints = (baseDate: Date, points: any[]) => {
   if (!Array.isArray(points)) return [];
   
@@ -83,11 +119,11 @@ export async function POST(req: Request) {
       companyId,
       routeId,
       busId,
-      departureTime, // Đây là STRING
-      arrivalTime,   // Đây là STRING
+      departureTime, 
+      arrivalTime,   
       basePrice,
       pickupPoints,    
-      dropoffPoints   
+      dropoffPoints,   
     } = body;
 
     if (!departureTime || !arrivalTime) {
@@ -112,7 +148,7 @@ export async function POST(req: Request) {
 
     // 2. Kiểm tra Route & Bus
     const route = await Route.findOne({ _id: routeId, companyId });
-    const bus = await Bus.findOne({ _id: busId, companyId });
+    const bus = await Bus.findOne({ _id: busId, companyId }).lean();
 
     if (!route || !bus) {
       return NextResponse.json(
@@ -132,6 +168,8 @@ export async function POST(req: Request) {
       Array.isArray(dropoffPoints) && dropoffPoints.length > 0
         ? calculateTripPoints(arrDate, dropoffPoints)
         : calculateTripPoints(arrDate, route.defaultDropoffPoints || []);
+    
+     const seatsStatus = generateSeatsStatus(bus.seatLayout);
 
     // 4. Tạo Trip
     const newTrip = await Trip.create({
@@ -144,6 +182,7 @@ export async function POST(req: Request) {
       basePrice: Number(basePrice),
       pickupPoints: finalPickupPoints,
       dropoffPoints: finalDropoffPoints,
+      seatsStatus : seatsStatus,
       status: 'scheduled'
     });
 
