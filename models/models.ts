@@ -184,6 +184,7 @@ interface SeatInfo {
   status: SeatStatus;
   bookingId?: Types.ObjectId;
   holdExpireAt?: Date;
+  socketId?: string;
 }
 
 export interface Trip {
@@ -234,6 +235,9 @@ const SeatInfoSchema = new Schema(
     },
     holdExpireAt: {
       type: Date
+    },
+    socketId: {
+      type: String
     }
   },
   { _id: false }

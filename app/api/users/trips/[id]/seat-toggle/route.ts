@@ -40,7 +40,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       );
 
       if (result.modifiedCount > 0) {
-        // Broadcast via socket.io if available
         (global as any).io?.to(tripId).emit('seat_released', { seatCode });
         return NextResponse.json({ success: true, action: 'release', seatCode });
       }

@@ -86,16 +86,20 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
 
       if (socketId === socket.id) {
         console.log('This is MY held seat:', seatCode);
-        setMyHeldSeats(prev => new Set([...prev, seatCode]));
-        
-        if (!selectedSeats.find(s => s.id === seatCode)) {
-          setSelectedSeats(prev => [...prev, {
-            id: seatCode,
-            price: trip?.basePrice || 0,
-            status: 'selected'
-          }]);
-        }
+        setMyHeldSeats(prev => {
+                  const newSet = new Set(prev);
+                  newSet.add(seatCode);
+                  return newSet;
+                });        
+        setSelectedSeats(prev => prev.some(s => s.id === seatCode)
+          ? prev
+          : [...prev, {
+              id: seatCode,
+              price: trip?.basePrice || 0,
+              status: 'selected'
+            }]);
       }
+
 
       setSeatStatusMap(prev => ({
         ...prev,
@@ -106,32 +110,37 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
       }));
     });
 
-    socket.on('seat_released', ({ seatCode, socketId }: any) => {
-      console.log('seat_released received:', { seatCode, socketId, mySocketId: socket.id });
+      socket.on('seat_released', ({ seatCode, socketId }: any) => {
+      console.log('Server báo nhả ghế:', seatCode, 'bởi', socketId);
+
+      // 1. Cập nhật trạng thái chung của phòng (về available)
+      setSeatStatusMap(prev => {
+        const newMap = { ...prev };
+        newMap[seatCode] = { status: 'available' }; 
+        return newMap;
+      });
       
+      // Xóa khỏi danh sách người khác giữ
       setHeldSeats(prev => {
         const newState = { ...prev };
         delete newState[seatCode];
         return newState;
       });
 
-      if (socketId === socket.id || socketId === 'all') {
+      // 2. Logic QUAN TRỌNG: Nếu là mình nhả hoặc bị Server ép nhả (force_sync)
+      if (socketId === socket.id || socketId === 'force_sync') {
+        console.log('-> Xóa ghế khỏi danh sách chọn của tôi:', seatCode);
+        
         setMyHeldSeats(prev => {
           const newSet = new Set(prev);
           newSet.delete(seatCode);
           return newSet;
         });
+        
+        setSelectedSeats(prev => prev.filter(s => s.id !== seatCode));
       }
-
-      setSeatStatusMap(prev => {
-        const newMap = { ...prev };
-        delete newMap[seatCode];
-        return newMap;
-      });
-      
-      setSelectedSeats(prev => prev.filter(s => s.id !== seatCode));
     });
-
+    
     socket.on('seat_auto_released', ({ seatCode }: any) => {
       console.log('seat_auto_released:', seatCode);
       message.info(`Ghế ${seatCode} đã được tự động giải phóng sau 5 phút`);
@@ -168,13 +177,13 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
         if (serverHeldSeats[key].socketId === socket.id) {
           mySeats.add(key);
           
-          if (!selectedSeats.find(s => s.id === key)) {
-            setSelectedSeats(prev => [...prev, {
-              id: key,
-              price: trip?.basePrice || 0,
-              status: 'selected'
-            }]);
-          }
+          setSelectedSeats(prev => prev.some(s => s.id === key)
+            ? prev
+            : [...prev, {
+                id: key,
+                price: trip?.basePrice || 0,
+                status: 'selected'
+              }]);
         }
       });
       
@@ -207,14 +216,77 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
 
         if (json.success) {
           const data = json.data;
+
+          // 1. CHUẨN HÓA THỜI GIAN ĐIỂM ĐÓN (Pickup)
+          // Mốc chuẩn: Giờ khởi hành của chuyến xe (departureTime)
+          const tripDeparture = dayjs(data.departureTime);
+
+          if (Array.isArray(data.pickupPoints)) {
+            data.pickupPoints = data.pickupPoints.map((p: any) => {
+              let calculatedTime;
+              
+              if (p.time) {
+                // Nếu DB đã lưu giờ cụ thể -> Dùng luôn
+                calculatedTime = dayjs(p.time);
+              } else {
+                // Nếu không, tính bằng: Giờ khởi hành + timeOffset (số phút)
+                // Nếu không có offset thì mặc định là 0 (chính là giờ khởi hành)
+                calculatedTime = tripDeparture.add(p.timeOffset || 0, 'minute');
+              }
+              
+              return { 
+                ...p, 
+                computedTime: calculatedTime.toISOString() 
+              };
+            });
+            
+            // Sắp xếp điểm đón theo thời gian tăng dần (để điểm sớm nhất lên đầu)
+            data.pickupPoints.sort((a: any, b: any) => dayjs(a.computedTime).valueOf() - dayjs(b.computedTime).valueOf());
+          }
+
+          // 2. CHUẨN HÓA THỜI GIAN ĐIỂM TRẢ (Dropoff)
+          // Lưu ý: Điểm trả cũng thường tính offset từ giờ khởi hành (hoặc giờ đến dự kiến)
+          if (Array.isArray(data.dropoffPoints)) {
+            data.dropoffPoints = data.dropoffPoints.map((p: any) => {
+              let calculatedTime;
+
+              if (p.time) {
+                 calculatedTime = dayjs(p.time);
+              } else {
+                 // Nếu có offset, cộng từ giờ KHỞI HÀNH (departureTime)
+                 // Ví dụ: Xe chạy 8 tiếng, điểm trả cuối offset = 480 phút
+                 calculatedTime = tripDeparture.add(p.timeOffset || 0, 'minute');
+              }
+
+              return { 
+                ...p, 
+                computedTime: calculatedTime.toISOString() 
+              };
+            });
+
+             // Sắp xếp điểm trả theo thời gian (để điểm đến cuối cùng nằm cuối list)
+             data.dropoffPoints.sort((a: any, b: any) => dayjs(a.computedTime).valueOf() - dayjs(b.computedTime).valueOf());
+          }
+
           setTrip(data);
 
-          if (data.pickupPoints?.length > 0) setSelectedPickup(data.pickupPoints[0]);
-          if (data.dropoffPoints?.length > 0) setSelectedDropoff(data.dropoffPoints[0]);
+          // 3. THIẾT LẬP MẶC ĐỊNH (Theo yêu cầu của bạn)
+          
+          // Mặc định điểm đón: Chọn điểm ĐẦU TIÊN (Index 0)
+          if (data.pickupPoints?.length > 0) {
+            setSelectedPickup(data.pickupPoints[0]);
+          }
+
+          // Mặc định điểm trả: Chọn điểm CUỐI CÙNG (Hành trình đi từ A -> B thì B thường ở cuối)
+          // Hoặc dùng data.dropoffPoints[0] nếu bạn muốn chọn điểm trả đầu tiên.
+          // Ở đây tôi để điểm cuối cùng theo logic "Start & End points"
+          if (data.dropoffPoints?.length > 0) {
+            const lastIndex = data.dropoffPoints.length - 1;
+            setSelectedDropoff(data.dropoffPoints[lastIndex]);
+          }
 
           const busLayout = data.bus?.seatLayout || data.busId?.seatLayout;
           let schema = busLayout?.schema;
-
           if (!schema || !Array.isArray(schema) || schema.length === 0) {
             const total = busLayout?.totalSeats || 40;
             schema = [];
@@ -233,7 +305,6 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
           const bookedMap = data.seatsStatus || {}; 
           setSeatStatusMap(bookedMap);
 
-          // Sau khi fetch trip xong, request sync seat status
           if (socketRef.current?.connected) {
             socketRef.current.emit('sync_seat_status', tripId);
           }
@@ -252,87 +323,48 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
     fetchTrip();
   }, [tripId, router]);
 
-  const handleSelectSeat = (seatCode: string) => {
+   const handleSelectSeat = (seatCode: string) => {
     if (!seatCode) return;
-
     const socket = socketRef.current;
-    if (!socket) {
-      message.error('Không có kết nối mạng!');
-      return;
-    }
+    if (!socket) return message.error('Mất kết nối server');
 
     const rawStatus = seatStatusMap[seatCode];
-    const dbStatus = (typeof rawStatus === 'object' && rawStatus !== null) 
-      ? rawStatus.status 
-      : rawStatus;
+    const dbStatus = rawStatus?.status; 
+    
+    // Kiểm tra kỹ: Server có ghi nhận ghế này là của mình không?
+    const heldByMySocket = rawStatus?.socketId === socket.id;
+    // Kiểm tra: Client có đang chọn không?
+    const isSelectedLocally = selectedSeats.some(s => s.id === seatCode);
 
-    const isBooked = ['confirmed', 'booked', 'pending_payment'].includes(dbStatus);
-    const isHeldByOthers = heldSeats[seatCode] && heldSeats[seatCode] !== socket.id;
-    const isMyHeldSeat = myHeldSeats.has(seatCode);
-    const isAlreadySelected = selectedSeats.find(s => s.id === seatCode);
-    
-    console.log('handleSelectSeat:', {
-      seatCode,
-      dbStatus,
-      isBooked,
-      isHeldByOthers,
-      isMyHeldSeat,
-      isAlreadySelected,
-      mySocketId: socket.id,
-      heldBy: heldSeats[seatCode]
-    });
-    
-    if (isBooked) {
-      return message.warning('Ghế này đã được đặt.');
-    }
-    
-    // Nếu ghế đang được người khác giữ
-    if (isHeldByOthers) {
-      return message.warning(`Ghế ${seatCode} đang được giữ bởi người khác!`);
-    }
+    // LOGIC CHỌN / BỎ CHỌN
+    const isMySeat = isSelectedLocally || heldByMySocket;
 
-    // 🔥 FIX: Nếu là ghế MÌNH đang giữ hoặc đã chọn -> BỎ CHỌN
-    if (isMyHeldSeat || isAlreadySelected) {
-      console.log('Releasing seat:', seatCode);
-      
-      // Gửi release trước
-      socket.emit('release_seat', { tripId, seatCode });
-      
-      // Sau đó update local state (không cần chờ response)
-      setSelectedSeats(prev => prev.filter(s => s.id !== seatCode));
-      setMyHeldSeats(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(seatCode);
-        return newSet;
-      });
-      
-      // Cập nhật heldSeats ngay lập tức
-      setHeldSeats(prev => {
-        const newState = { ...prev };
-        delete newState[seatCode];
-        return newState;
-      });
-    } 
-    // 🔥 Nếu ghế trống -> CHỌN
-    else {
-      if (selectedSeats.length >= 5) {
-        return message.warning('Tối đa 5 ghế/lần đặt');
-      }
-      
-      console.log('Holding seat:', seatCode);
-      
-      // Gửi hold request
-      socket.emit('hold_seat', { tripId, seatCode });
-      
-      // Optimistic update
-      const newSeat: SeatUI = { 
-        id: seatCode, 
-        price: trip.basePrice, 
-        status: 'selected' 
-      };
-      setSelectedSeats(prev => [...prev, newSeat]);
-      setMyHeldSeats(prev => new Set([...prev, seatCode]));
-      setHeldSeats(prev => ({ ...prev, [seatCode]: socket.id }));
+    if (isMySeat) {
+        // ==> RELEASE
+        console.log('Action: RELEASE', seatCode);
+        socket.emit('release_seat', { tripId, seatCode });
+        
+        // Xóa ngay lập tức ở Client để UI mượt (Optimistic Update)
+        setSelectedSeats(prev => prev.filter(s => s.id !== seatCode));
+        setMyHeldSeats(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(seatCode);
+            return newSet;
+        });
+        
+    } else {
+        // ==> HOLD
+        if (dbStatus === 'booked' || dbStatus === 'sold') return message.warning('Ghế đã bán');
+        if (dbStatus === 'holding' && !heldByMySocket) return message.warning('Ghế người khác đang giữ');
+        if (selectedSeats.length >= 5) return message.warning('Tối đa 5 ghế');
+
+        console.log('Action: HOLD', seatCode);
+        socket.emit('hold_seat', { tripId, seatCode });
+        
+        // Hiển thị ngay
+        const newSeat: SeatUI = { id: seatCode, price: trip.basePrice, status: 'selected' };
+        setSelectedSeats(prev => [...prev, newSeat]);
+        setMyHeldSeats(prev => new Set([...prev, seatCode]));
     }
   };
 
@@ -493,7 +525,7 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
                         <Radio key={p._id} value={p._id} className="w-full border p-2 rounded hover:bg-gray-50">
                           <div className="flex justify-between w-full">
                             <span>
-                              <span className="font-bold text-blue-600 mr-2">{formatTime(p.time)}</span>
+                              <span className="font-bold text-blue-600 mr-2">{formatTime(p.computedTime)}</span>
                               {p.name}
                             </span>
                             {p.surcharge > 0 && <Tag color="orange">+{p.surcharge.toLocaleString()}</Tag>}
@@ -515,7 +547,7 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
                       {trip.dropoffPoints.map((p: any) => (
                         <Radio key={p._id} value={p._id} className="w-full border p-2 rounded hover:bg-gray-50">
                           <div>
-                            <span className="font-bold text-gray-700 mr-2">{formatTime(p.time)}</span>
+                            <span className="font-bold text-gray-700 mr-2">{formatTime(p.computedTime)}</span>
                             {p.name}
                           </div>
                           <div className="text-xs text-gray-400 ml-6 truncate" title={p.address}>{p.address}</div>
