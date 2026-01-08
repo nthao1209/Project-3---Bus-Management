@@ -8,6 +8,10 @@ export async function POST(req: Request) {
     await dbConnect();
     const session = await getCurrentUser();
 
+    const body = await req.json();
+    // Debug log để xem body gửi lên có đúng không
+    console.log("Booking Request Body:", body);
+
     const {
       tripId,
       seatCodes,
@@ -17,7 +21,7 @@ export async function POST(req: Request) {
       totalPrice,
       note,
       paymentMethod 
-    } = await req.json();
+    } = body;
 
     if (!tripId || !seatCodes?.length) {
       return NextResponse.json({ message: 'Dữ liệu không hợp lệ' }, { status: 400 });
@@ -28,28 +32,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'Chuyến đi không tồn tại' }, { status: 404 });
     }
 
-    /* ================== 1. KIỂM TRA GHẾ ================== */
+    const getSeat = (code: string) => {
+        if (trip.seatsStatus instanceof Map) return trip.seatsStatus.get(code);
+        return trip.seatsStatus ? trip.seatsStatus[code] : null;
+    };
+
     for (const code of seatCodes) {
-      const seat = trip.seatsStatus?.[code];
-      if (seat && seat.status !== 'available') {
-        return NextResponse.json({
-          message: `Ghế ${code} đã được đặt`
+      const seat = getSeat(code);
+      
+      if (seat && (seat.status === 'booked')) {
+         return NextResponse.json({
+          message: `Ghế ${code} đã bị người khác đặt mất.`
         }, { status: 409 });
       }
     }
 
-    /* ================== 2. XÁC ĐỊNH TRẠNG THÁI ================== */
     const isOfficePayment = paymentMethod === 'office';
+    const bookingStatus = isOfficePayment ?  'pending_payment':'confirmed';
 
-    const bookingStatus = isOfficePayment
-      ? 'confirmed'
-      : 'pending_payment';
+    const paymentExpireAt = isOfficePayment ? null : new Date(Date.now() + 15 * 60 * 1000);
 
-    const paymentExpireAt = isOfficePayment
-      ? null
-      : new Date(Date.now() + 15 * 60 * 1000);
-
-    /* ================== 3. TẠO BOOKING ================== */
     const booking = await Booking.create({
       userId: session?.userId || null,
       tripId,
@@ -60,35 +62,44 @@ export async function POST(req: Request) {
       dropoffPoint,
       note,
       status: bookingStatus,
-      paymentMethod,
+      paymentMethod: isOfficePayment ? 'offline' : 'vnpay', 
       paymentExpireAt
     });
+
     await Payment.create({
       bookingId: booking._id,
       userId: session?.userId || null,
       amount: totalPrice,
       method: isOfficePayment ? 'offline' : 'vnpay',
-      status: isOfficePayment ? 'success' : 'pending',
+      status: isOfficePayment ? 'pending' : 'pending', 
       createdAt: new Date()
     });
-    /* ================== 4. CẬP NHẬT GHẾ ================== */
-    const updateQuery: any = {};
+
+    
+    const newSeatStatus = isOfficePayment ? 'booked' : 'booked';
 
     seatCodes.forEach((code: string) => {
-      updateQuery[`seatsStatus.${code}.status`] = isOfficePayment
-        ? 'booked'
-        : 'holding';
+      const seatData = {
+        status: newSeatStatus,
+        bookingId: booking._id,
+        holdExpireAt: paymentExpireAt,
+        socketId: null 
+      };
 
-      updateQuery[`seatsStatus.${code}.bookingId`] = booking._id;
-      updateQuery[`seatsStatus.${code}.holdExpireAt`] = paymentExpireAt;
+      if (trip.seatsStatus instanceof Map) {
+        trip.seatsStatus.set(code, seatData);
+      } else {
+        trip.seatsStatus[code] = seatData;
+      }
     });
 
-    await Trip.findByIdAndUpdate(tripId, { $set: updateQuery });
+    trip.markModified('seatsStatus'); 
+    await trip.save();
 
     return NextResponse.json({ success: true, data: booking });
 
   } catch (err: any) {
-    console.error(err);
-    return NextResponse.json({ message: err.message }, { status: 500 });
+    console.error("Booking API Error:", err);
+    return NextResponse.json({ message: err.message || 'Lỗi server' }, { status: 500 });
   }
 }

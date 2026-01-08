@@ -178,7 +178,7 @@ interface TripPoint {
   surcharge?: number;
 }
 
-type SeatStatus = 'available' | 'holding' | 'booked';
+type SeatStatus = 'available' | 'holding' | 'booked' ;
 
 interface SeatInfo {
   status: SeatStatus;

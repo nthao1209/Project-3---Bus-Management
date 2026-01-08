@@ -54,7 +54,7 @@ export default function BookingCheckoutForm({
           },
           totalPrice: totalPrice,
           note: values.note,
-          paymentMethod: paymentMethod === 'cash' ? 'vnpay' : 'office'
+          paymentMethod: paymentMethod === 'vnpay' ? 'vnpay' : 'office'
         }),
       });
 

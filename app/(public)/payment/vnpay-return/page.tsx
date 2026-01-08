@@ -10,7 +10,6 @@ function PaymentResult() {
   const [status, setStatus] = useState<'loading' | 'success' | 'failed'>('loading');
 
   useEffect(() => {
-    // Lấy ResponseCode từ URL
     const responseCode = searchParams.get('vnp_ResponseCode');
     
     // "00" là thành công
@@ -20,9 +19,7 @@ function PaymentResult() {
       setStatus('failed');
     }
     
-    // Lưu ý: Ở đây chỉ hiển thị UI. Việc cập nhật DB an toàn nhất là ở API IPN.
-    // Tuy nhiên, để UX tốt hơn, bạn có thể gọi nhẹ 1 API check status booking 
-    // từ DB để đảm bảo chắc chắn.
+    
   }, [searchParams]);
 
   if (status === 'loading') return <div className="h-screen flex justify-center items-center"><Spin size="large" /></div>;

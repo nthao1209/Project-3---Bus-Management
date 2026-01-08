@@ -18,7 +18,6 @@ export async function GET(req: Request) {
       );
     }
 
-      //  1. FIND STATIONS
     const startStations = await Station.find({
       province: { $regex: fromProvince, $options: 'i' }
     }).select('_id');
@@ -48,17 +47,13 @@ export async function GET(req: Request) {
     }
 
 
-    //   3. FIX DATE (LOCAL DAY IN VIETNAM TZ)
-    // Treat the provided `dateStr` (YYYY-MM-DD) as a local date in Vietnam (UTC+7).
-    // Compute the UTC range that covers that whole local day so we include early-morning trips.
+    
     const [y, m, d] = dateStr.split('-').map(Number);
     const VIETNAM_OFFSET_MINUTES = 7 * 60; // +7 hours
 
-    // local midnight (Asia/Ho_Chi_Minh) expressed in UTC
     const startOfDayUTC = new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - VIETNAM_OFFSET_MINUTES * 60 * 1000);
     const endOfDayUTC = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999) - VIETNAM_OFFSET_MINUTES * 60 * 1000);
 
-     //  4. FIND TRIPS
     
     const trips = await Trip.find({
       routeId: { $in: routes.map(r => r._id) },
@@ -69,15 +64,13 @@ export async function GET(req: Request) {
     .populate('busId', 'type seatLayout')
     .populate('routeId', 'name durationMinutes')
     .sort({ departureTime: 1 })
-    .lean(); // Dùng lean() để query nhanh hơn
+    .lean(); 
 
-    //  5. FORMAT RESPONSE
 
     const formattedTrips = trips.map(trip => {
       const totalSeats =
         trip.busId?.seatLayout?.totalSeats ?? 40;
 
-      // Count only seats with status === 'booked' to determine available seats
       let bookedSeats = 0;
       if (trip.seatsStatus && typeof trip.seatsStatus === 'object') {
         bookedSeats = Object.values(trip.seatsStatus).filter((s: any) => s?.status === 'booked').length;

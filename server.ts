@@ -177,27 +177,49 @@ app.prepare().then(() => {
       try {
         await dbConnect();
 
-        await Trip.updateMany(
-          { 'seatsStatus.socketId': socket.id },
-          {
-            $set: {
-              'seatsStatus.$[seat].status': 'available',
-            },
-            $unset: {
-              'seatsStatus.$[seat].socketId': '',
-              'seatsStatus.$[seat].holdExpireAt': '',
-            },
-          },
-          {
-            arrayFilters: [{ 'seat.socketId': socket.id }],
+        // 1. Tìm tất cả các chuyến đi mà trong seatsStatus có chứa socketId này
+        // Lưu ý: Query này có thể chậm nếu DB lớn, nhưng an toàn cho Map
+        // Cách tối ưu hơn là dùng Redis, nhưng với MongoDB thuần thì làm như sau:
+        const trips = await Trip.find({}); 
+
+        for (const trip of trips) {
+          if (!trip.seatsStatus) continue;
+
+          let isModified = false;
+
+          // Duyệt qua Map seatsStatus
+          // (Cần check trip.seatsStatus là Map hay Object tùy version Mongoose, code dưới hỗ trợ cả 2)
+          if (typeof trip.seatsStatus.forEach === 'function') {
+             // Nếu là Map
+             trip.seatsStatus.forEach((val: any, key: string) => {
+                if (val.socketId === socket.id && val.status === 'holding') {
+                   trip.seatsStatus.set(key, { status: 'available' });
+                   io.to(trip._id.toString()).emit('seat_released', { seatCode: key, socketId: socket.id });
+                   isModified = true;
+                }
+             });
+          } else {
+             // Nếu là Object (fallback)
+             Object.keys(trip.seatsStatus).forEach(key => {
+                if (trip.seatsStatus[key].socketId === socket.id && trip.seatsStatus[key].status === 'holding') {
+                   trip.seatsStatus[key] = { status: 'available' };
+                   io.to(trip._id.toString()).emit('seat_released', { seatCode: key, socketId: socket.id });
+                   isModified = true;
+                }
+             });
           }
-        );
+
+          if (isModified) {
+             trip.markModified('seatsStatus');
+             await trip.save();
+             console.log(`Cleaned up seats for user ${socket.id} in trip ${trip._id}`);
+          }
+        }
       } catch (err) {
         console.error('disconnect cleanup error:', err);
       }
     });
   });
-
   server.listen(3000, () => {
     console.log('🚀 Server ready at http://localhost:3000');
   });
