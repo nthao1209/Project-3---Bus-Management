@@ -14,7 +14,6 @@ const formatPoints = (points: any[]) => {
   }));
 };
 
-// GET: Lấy danh sách tuyến đường của nhà xe
 export async function GET() {
   try {
     await dbConnect();

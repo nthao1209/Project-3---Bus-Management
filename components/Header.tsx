@@ -98,7 +98,7 @@
             return;
           }
           const data = await res.json();
-          setUser(data);
+          setUser(data.user || data);
         } catch {
           setUser(null);
         }
@@ -234,7 +234,7 @@
             {user ? (
               <Dropdown menu={{ items: userMenu }} placement="bottomRight">
                 <Avatar className="bg-yellow-400 text-blue-700 font-bold cursor-pointer">
-                  {user.email.charAt(0).toUpperCase()}
+                  {user.email?.charAt(0).toUpperCase() || user.name?.charAt(0).toUpperCase() || 'U'}
                 </Avatar>
               </Dropdown>
             ) : (

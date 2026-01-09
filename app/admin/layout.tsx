@@ -15,7 +15,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <Layout className="min-h-screen">
-      <Sidebar collapsed={collapsed} />
+      <Sidebar 
+            collapsed={collapsed}
+            setCollapsed = {setCollapsed}
+       />
       
       <Layout>
         <Header />

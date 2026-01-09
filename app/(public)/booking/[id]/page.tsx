@@ -185,7 +185,12 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
 
   const handleNextStep = () => {
     if (selectedSeats.length === 0) return message.error('Vui lòng chọn ghế');
-    if (!selectedPickup || !selectedDropoff) return message.error('Vui lòng chọn điểm đón/trả');
+    
+    // ✅ Kiểm tra chặt chẽ hơn: phải có _id (không chỉ kiểm tra truthy)
+    if (!selectedPickup?._id || !selectedDropoff?._id) {
+      return message.error('Vui lòng chọn điểm đón/trả');
+    }
+    
     setStep(2);
   };
 

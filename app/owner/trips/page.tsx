@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
-  Button, Select, DatePicker, Tag, message, Space, Popconfirm, Avatar, Tooltip 
+  Button, DatePicker, Tag, message, Space, Popconfirm, Avatar, Tooltip, Select 
 } from 'antd';
+
 import { 
   EditOutlined, DeleteOutlined, 
   UserOutlined, ClockCircleOutlined, CarOutlined, EnvironmentOutlined, SyncOutlined 
@@ -11,7 +12,9 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import DataTable from '@/components/DataTable'; // Giả sử bạn đã có component này
 import TripModal from '@/components/TripModal'; // Component Modal chúng ta vừa sửa
-import dayjs from 'dayjs';
+import dayjs, { Dayjs} from 'dayjs';
+
+const { RangePicker } = DatePicker;
 
 interface Trip {
   _id: string;
@@ -30,8 +33,21 @@ export default function OwnerTripsPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
   
+   const statusOptions = [
+    { value: 'scheduled', label: 'Sắp chạy', color: 'blue' },
+    { value: 'running', label: 'Đang chạy', color: 'green' },
+    { value: 'completed', label: 'Hoàn thành', color: 'gray' },
+    { value: 'cancelled', label: 'Đã hủy', color: 'red' },
+  ];
+
   const [filterDate, setFilterDate] = useState<dayjs.Dayjs | null>(dayjs());
+  const [generateRange, setGenerateRange] = useState<[Dayjs | null, Dayjs | null] | null>([
+    dayjs(),
+    dayjs().add(7, 'day')
+  ]);
+
   const [isFetchingDetail, setIsFetchingDetail] = useState(false);
 
   // State Modal
@@ -70,10 +86,8 @@ export default function OwnerTripsPage() {
     }
   };
 
-  // 2. Fetch Dữ liệu phụ trợ cho Modal
   const fetchDependencies = async () => {
     try {
-      // Gọi song song các API để tiết kiệm thời gian
       const [resComp, resRoutes, resBuses, resDrivers, resStations] = await Promise.all([
         fetch('/api/owner/companies'), // Lấy danh sách nhà xe của owner
         fetch('/api/owner/routes'),    // Lấy danh sách tuyến
@@ -87,7 +101,6 @@ export default function OwnerTripsPage() {
       ]);
       
       setModalData({
-        // Format dữ liệu cho Select (label, value)
         companies: dComp.data?.map((c: any) => ({ label: c.name, value: c._id })) || [],
         
         routes: dRoutes.data?.map((r: any) => ({ label: r.name, value: r._id })) || [],
@@ -97,11 +110,10 @@ export default function OwnerTripsPage() {
         
         drivers: dDrivers.data?.map((d: any) => ({ label: `${d.name} - ${d.phone}`, value: d._id })) || [],
         
-        // QUAN TRỌNG: Map thêm trường address vào option stations
         stations: dStations.data?.map((s: any) => ({ 
           label: s.name, 
           value: s._id, 
-          address: s.address // Cần trường này để auto-fill địa chỉ
+          address: s.address 
         })) || [],
       });
 
@@ -115,6 +127,67 @@ export default function OwnerTripsPage() {
     fetchTrips();
     fetchDependencies();
   }, [filterDate]);
+
+   const handleGenerateTrips = async () => {
+    if (!generateRange || !generateRange[0] || !generateRange[1]) {
+      message.error('Vui lòng chọn khoảng ngày sinh lịch');
+      return;
+    }
+
+    const hide = message.loading('Đang sinh lịch từ mẫu...', 0);
+    try {
+      const res = await fetch('/api/cron/generate-trips', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startDate: generateRange[0].format('YYYY-MM-DD'),
+          endDate: generateRange[1].format('YYYY-MM-DD')
+        })
+      });
+
+      const json = await res.json();
+
+      if (res.ok) {
+        message.success(json.message || 'Sinh lịch thành công');
+        fetchTrips();
+      } else {
+        message.error(json.message || 'Sinh lịch thất bại');
+      }
+    } catch {
+      message.error('Lỗi hệ thống');
+    } finally {
+      hide();
+    }
+  };
+
+   const handleStatusChange = async (tripId: string, newStatus: string) => {
+    setUpdatingStatusId(tripId);
+    try {
+      const res = await fetch(`/api/owner/trips/${tripId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      });
+
+      const json = await res.json();
+
+      if (res.ok) {
+        message.success('Cập nhật trạng thái thành công');
+        // Cập nhật lại state local ngay lập tức để giao diện mượt hơn
+        setTrips((prev) => 
+          prev.map((t) => t._id === tripId ? { ...t, status: newStatus as any } : t)
+        );
+      } else {
+        message.error(json.message || 'Lỗi cập nhật trạng thái');
+        // Nếu lỗi thì reload lại data gốc để đảm bảo đúng dữ liệu
+        fetchTrips(); 
+      }
+    } catch (error) {
+      message.error('Lỗi kết nối');
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
 
   const handleModalSubmit = async (values: any) => {
     setSubmitting(true);
@@ -142,29 +215,6 @@ export default function OwnerTripsPage() {
       message.error('Lỗi kết nối server');
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  // 4. Sinh Lịch Tự Động (Generate from Templates)
-  const handleGenerateTrips = async () => {
-    const hide = message.loading('Đang sinh lịch từ mẫu...', 0);
-    try {
-      const res = await fetch('/api/cron/generate-trips', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const json = await res.json();
-      
-      if (res.ok) {
-        message.success(json.message);
-        fetchTrips();
-      } else {
-        message.error(json.message);
-      }
-    } catch {
-      message.error('Lỗi hệ thống');
-    } finally {
-      hide();
     }
   };
 
@@ -260,12 +310,28 @@ export default function OwnerTripsPage() {
       title: 'Trạng thái',
       dataIndex: 'status',
       key: 'status',
-      width: 120,
-      render: (st) => {
-        const colorMap: any = { scheduled: 'blue', running: 'green', completed: 'gray', cancelled: 'red' };
-        const textMap: any = { scheduled: 'Sắp chạy', running: 'Đang chạy', completed: 'Hoàn thành', cancelled: 'Hủy' };
-        return <Tag color={colorMap[st]}>{textMap[st]}</Tag>;
-      }
+      width: 160,
+      render: (currentStatus, record) => (
+        <Select
+          value={currentStatus}
+          style={{ width: '100%' }}
+          size="small"
+          loading={updatingStatusId === record._id} // Hiện loading ở đúng dòng đang sửa
+          onChange={(newVal) => handleStatusChange(record._id, newVal)}
+          options={statusOptions.map(opt => ({
+             value: opt.value,
+             label: (
+               <Space>
+                 {/* Dấu chấm tròn màu */}
+                 <span className={`inline-block w-2 h-2 rounded-full bg-${opt.color === 'gray' ? 'gray-400' : opt.color + '-500'}`}></span>
+                 <span className={`text-${opt.color === 'gray' ? 'gray-500' : opt.color + '-600'}`}>{opt.label}</span>
+               </Space>
+             )
+          }))}
+          // Tùy chỉnh màu nền của Select khi chưa bấm vào (cho giống Tag)
+          className={`status-select-${currentStatus}`} 
+        />
+      )
     },
     {
       title: '',
@@ -290,8 +356,16 @@ export default function OwnerTripsPage() {
   // Tool Bar phụ (Bên phải nút Thêm mới)
   const ExtraTools = (
     <div className="flex items-center gap-3">
-      <Button 
-        icon={<SyncOutlined />} 
+      <RangePicker
+        value={generateRange}
+        onChange={setGenerateRange}
+        format="DD/MM/YYYY"
+        className="w-[260px]"
+        placeholder={['Từ ngày', 'Đến ngày']}
+      />
+
+      <Button
+        icon={<SyncOutlined />}
         onClick={handleGenerateTrips}
         className="text-purple-600 border-purple-600 hover:bg-purple-50"
       >

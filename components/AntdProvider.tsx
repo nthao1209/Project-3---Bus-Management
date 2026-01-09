@@ -11,8 +11,6 @@ export default function AntdProvider({
   return (
     <ConfigProvider
       theme={{
-        // tùy chọn theme nếu cần
-        // algorithm: theme.defaultAlgorithm,
       }}
     >
       <App>{children}</App>

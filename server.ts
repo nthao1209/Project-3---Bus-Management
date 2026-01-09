@@ -6,6 +6,10 @@ import mongoose from 'mongoose';
 import 'dotenv/config';
 import { dbConnect } from './lib/dbConnect.ts';
 import { Trip } from './models/models.ts';
+import { validateEnvOrExit } from './lib/validateEnv.ts';
+
+// Validate environment variables before starting
+validateEnvOrExit();
 
 const dev = process.env.NODE_ENV !== 'production';
 const app = next({ dev });
@@ -25,6 +29,10 @@ app.prepare().then(() => {
     },
   });
 
+  // Export io instance để sử dụng trong API routes - PHẢI ĐẶT NGAY SAU KHI TẠO
+  (global as any).io = io;
+  console.log('✅ Socket.IO instance set to global');
+
   io.on('connection', (socket: Socket) => {
     console.log('✅ Client connected:', socket.id);
 
@@ -39,6 +47,18 @@ app.prepare().then(() => {
       if (!trip) return;
 
       socket.emit('sync_seat_status', trip.seatsStatus || {});
+    });
+
+    /**
+     * Join company dashboard room for real-time updates
+     */
+    socket.on('join_company_dashboard', (companyId: string) => {
+      const roomName = `company_${companyId}`;
+      socket.join(roomName);
+      console.log(`📊 Dashboard socket ${socket.id} joined room: ${roomName}`);
+      
+      // Confirm join to client
+      socket.emit('joined_dashboard', { roomName, companyId });
     });
 
      // Helper để lấy thông tin ghế từ Map an toàn
@@ -220,6 +240,7 @@ app.prepare().then(() => {
       }
     });
   });
+  
   server.listen(3000, () => {
     console.log('🚀 Server ready at http://localhost:3000');
   });

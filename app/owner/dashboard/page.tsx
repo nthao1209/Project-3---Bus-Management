@@ -1,45 +1,120 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Card, Row, Col, Statistic, Table, Tag, Spin, message, Alert } from 'antd';
+import { Card, Row, Col, Statistic, Table, Tag, Spin, message, Alert, Badge } from 'antd';
 import { 
   DollarCircleOutlined, 
   ShoppingOutlined, 
   CarOutlined, 
-  RiseOutlined,
-  ClockCircleOutlined
+  ClockCircleOutlined,
+  BellOutlined
 } from '@ant-design/icons';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend 
 } from 'recharts';
+import { io, Socket } from 'socket.io-client';
 
 export default function OwnerDashboard() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [newBookingCount, setNewBookingCount] = useState(0);
+
+  const fetchStats = async () => {
+    try {
+      const res = await fetch('/api/owner/dashboard/stats');
+      const json = await res.json();
+      if (json.success) {
+        setData(json.data);
+      } else {
+        message.warning('Chưa tải được dữ liệu thống kê');
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const res = await fetch('/api/owner/dashboard/stats');
-        const json = await res.json();
-        if (json.success) {
-          setData(json.data);
-        } else {
-          // Nếu chưa có công ty hoặc lỗi quyền
-          message.warning('Chưa tải được dữ liệu thống kê');
-        }
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchStats();
+
+    const socketInstance = io({
+      path: '/socket.io',
+    });
+
+    socketInstance.on('connect', () => {
+      console.log('Dashboard connected to Socket.IO, ID:', socketInstance.id);
+      
+      fetch('/api/auth/me')
+        .then(res => res.json())
+        .then(data => {
+          console.log('User data:', data);
+          if (data.user?.companyId) {
+            const companyId = data.user.companyId;
+            console.log('Joining company room:', companyId);
+            socketInstance.emit('join_company_dashboard', companyId);
+          } else {
+            console.warn('No companyId found for owner');
+          }
+        })
+        .catch(err => console.error('Error fetching user:', err));
+    });
+
+    socketInstance.on('disconnect', () => {
+      console.log(' Dashboard disconnected from Socket.IO');
+    });
+
+    socketInstance.on('connect_error', (error) => {
+      console.error('Socket connection error:', error);
+    });
+
+    socketInstance.on('joined_dashboard', (data: any) => {
+      console.log('Successfully joined dashboard room:', data);
+    });
+
+    socketInstance.on('new_booking', (eventData: any) => {
+      console.log(' New booking received:', eventData);
+      
+      message.success({
+        content: `Có đơn hàng mới từ ${eventData.customerName}! (+${eventData.amount.toLocaleString()}đ)`,
+        duration: 5
+      });
+      
+      setNewBookingCount(prev => prev + 1);
+      
+      console.log('Refreshing stats due to new booking...');
+      fetchStats();
+    });
+
+    // Listen for booking updates
+    socketInstance.on('booking_updated', (eventData: any) => {
+      console.log('Booking updated:', eventData);
+      
+      if (eventData.type === 'office_booking') {
+        message.info(`Đơn hàng mới tại quầy: ${eventData.customerName}`);
+      }
+      
+      // Refresh stats
+      fetchStats();
+    });
+
+    setSocket(socketInstance);
+
+    // Auto refresh every 30 seconds
+    const intervalId = setInterval(() => {
+      console.log('🔄 Auto-refreshing dashboard stats...');
+      fetchStats();
+    }, 30000);
+
+    return () => {
+      socketInstance.disconnect();
+      clearInterval(intervalId);
+    };
   }, []);
 
   if (loading) return <div className="flex h-screen justify-center items-center"><Spin size="large" /></div>;
 
-  // Cấu hình bảng booking gần đây
   const columns = [
     {
       title: 'Khách hàng',
@@ -94,9 +169,22 @@ export default function OwnerDashboard() {
 
   return (
     <div className="p-6 bg-slate-50 min-h-screen">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Tổng quan hoạt động</h2>
-        <p className="text-gray-500">Chào mừng trở lại! Đây là tình hình kinh doanh nhà xe của bạn.</p>
+      <div className="mb-6 flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-800">Tổng quan hoạt động</h2>
+          <p className="text-gray-500">Chào mừng trở lại! Đây là tình hình kinh doanh nhà xe của bạn.</p>
+        </div>
+        {newBookingCount > 0 && (
+          <Badge count={newBookingCount} offset={[-5, 5]}>
+            <BellOutlined 
+              style={{ fontSize: 28, color: '#1890ff' }} 
+              onClick={() => {
+                setNewBookingCount(0);
+                message.info('Đã xem tất cả thông báo mới');
+              }}
+            />
+          </Badge>
+        )}
       </div>
 
       {!data && (
@@ -144,23 +232,9 @@ export default function OwnerDashboard() {
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} className="shadow-sm">
-            <Statistic
-              title="Tăng trưởng tuần"
-              value={12.5}
-              precision={1}
-              valueStyle={{ color: '#cf1322', fontWeight: 'bold' }}
-              prefix={<RiseOutlined />}
-              suffix="%"
-            />
-          </Card>
-        </Col>
       </Row>
 
-      {/* 2. BIỂU ĐỒ VÀ BẢNG */}
       <Row gutter={[16, 16]}>
-        {/* Biểu đồ bên trái */}
         <Col xs={24} lg={14}>
           <Card title="Doanh thu 7 ngày gần nhất" bordered={false} className="shadow-sm h-full min-h-[400px]">
             <ResponsiveContainer width="100%" height={320}>
@@ -176,7 +250,6 @@ export default function OwnerDashboard() {
           </Card>
         </Col>
 
-        {/* Danh sách booking mới nhất bên phải */}
         <Col xs={24} lg={10}>
           <Card 
             title={<div className="flex items-center gap-2"><ClockCircleOutlined /> Đơn hàng mới nhất</div>} 

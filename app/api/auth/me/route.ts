@@ -18,7 +18,7 @@ export async function GET() {
     const decoded: any = jwt.verify(token, process.env.JWT_SECRET!);
 
     const user = await User.findById(decoded.userId).select(
-      '_id name email phone role'
+      '_id name email phone role companyId'
     );
 
     if (!user) {
@@ -26,11 +26,14 @@ export async function GET() {
     }
 
     return NextResponse.json({
-      userId: user._id,
-      name: user.name,    
-      email: user.email,
-      role: user.role,
-      phone: user.phone,
+      user: {
+        userId: user._id,
+        name: user.name,    
+        email: user.email,
+        role: user.role,
+        phone: user.phone,
+        companyId: user.companyId,
+      }
     });
   } catch (err) {
     return NextResponse.json(null, { status: 401 });

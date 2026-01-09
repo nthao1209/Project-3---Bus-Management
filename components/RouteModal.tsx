@@ -11,8 +11,8 @@ import { useState } from 'react';
 import { AddressModal } from './AddressModal';
 
 interface StationOption {
-  label: string;
   value: string;
+  name: string;
   address?: string;
 }
 
@@ -38,15 +38,22 @@ export default function RouteModal({
   const [addrModalOpen, setAddrModalOpen] = useState(false);
   const [activeField, setActiveField] = useState<{ list: string; index: number } | null>(null);
 
-  /** Khi chọn station -> auto fill address */
   const handleStationChange = (val: string, index: number, listName: string) => {
     const station = stations.find(s => s.value === val);
-    if (station?.address) {
-      form.setFieldValue([listName, index, 'address'], station.address);
+    
+    if (station) {
+      form.setFields([
+        { name: [listName, index, 'name'], value: station.name },             // Tự điền tên điểm
+        { name: [listName, index, 'address'], value: station.address || '' },  // Tự điền địa chỉ
+        { name: [listName, index, 'timeOffset'], value: 0 },                   // Set 0 phút
+        { name: [listName, index, 'defaultSurcharge'], value: 0 }              // Set 0 phụ thu
+      ]);
+    } else {
+      form.setFieldValue([listName, index, 'address'], '');
     }
   };
 
-  /** Khi chọn địa chỉ từ AddressModal */
+
   const handleAddressOk = (fullAddress: string) => {
     if (!activeField) return;
     form.setFieldValue(
@@ -56,7 +63,6 @@ export default function RouteModal({
     setAddrModalOpen(false);
   };
 
-  /** Render Pickup / Dropoff List */
   const renderPointList = (listName: string, title: string) => (
     <div className="mt-4 p-4 bg-slate-50 rounded border">
       <h4 className="font-semibold mb-2">{title}</h4>
@@ -88,7 +94,9 @@ export default function RouteModal({
                 </Col>
 
                 <Col span={6}>
-                  <Form.Item shouldUpdate noStyle>
+                  <Form.Item shouldUpdate={(prev, curr) => 
+                      prev[listName]?.[name]?.stationId !== curr[listName]?.[name]?.stationId
+                  } noStyle>
                     {({ getFieldValue }) => {
                       const isStation = !!getFieldValue([listName, name, 'stationId']);
                       return (

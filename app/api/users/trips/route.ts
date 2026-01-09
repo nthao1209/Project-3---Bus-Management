@@ -54,10 +54,31 @@ export async function GET(req: Request) {
     const startOfDayUTC = new Date(Date.UTC(y, m - 1, d, 0, 0, 0) - VIETNAM_OFFSET_MINUTES * 60 * 1000);
     const endOfDayUTC = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999) - VIETNAM_OFFSET_MINUTES * 60 * 1000);
 
+    // Lấy thời gian hiện tại để lọc các chuyến chưa chạy
+    const now = new Date();
+    
+    // Nếu ngày tìm kiếm là hôm nay, chỉ lấy chuyến sau thời điểm hiện tại
+    const isToday = 
+      y === now.getFullYear() && 
+      m === now.getMonth() + 1 && 
+      d === now.getDate();
+    
+    const minDepartureTime = isToday ? now : startOfDayUTC;
+    
+    console.log('🔍 Search params:', {
+      date: dateStr,
+      isToday,
+      now: now.toISOString(),
+      minDepartureTime: minDepartureTime.toISOString(),
+      endOfDay: endOfDayUTC.toISOString()
+    });
     
     const trips = await Trip.find({
       routeId: { $in: routes.map(r => r._id) },
-      departureTime: { $gte: startOfDayUTC, $lte: endOfDayUTC },
+      departureTime: { 
+        $gte: minDepartureTime,  // Chỉ lấy chuyến từ thời điểm hiện tại trở đi
+        $lte: endOfDayUTC 
+      },
       status: { $in: ['scheduled', 'running'] }
     })
     .populate('companyId', 'name')

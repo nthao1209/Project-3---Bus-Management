@@ -48,9 +48,10 @@ export async function POST(req: Request) {
     }
 
     const isOfficePayment = paymentMethod === 'office';
-    const bookingStatus = isOfficePayment ?  'pending_payment':'confirmed';
+    // Cả VNPay và Office payment đều là pending_payment cho đến khi thanh toán thực sự
+    const bookingStatus = 'pending_payment';
 
-    const paymentExpireAt = isOfficePayment ? null : new Date(Date.now() + 15 * 60 * 1000);
+    const paymentExpireAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 giờ cho cả 2 loại
 
     const booking = await Booking.create({
       userId: session?.userId || null,
@@ -71,12 +72,13 @@ export async function POST(req: Request) {
       userId: session?.userId || null,
       amount: totalPrice,
       method: isOfficePayment ? 'offline' : 'vnpay',
-      status: isOfficePayment ? 'pending' : 'pending', 
+      status: 'pending',
       createdAt: new Date()
     });
 
     
-    const newSeatStatus = isOfficePayment ? 'booked' : 'booked';
+    // Cả 2 loại đều holding cho đến khi thanh toán
+    const newSeatStatus = 'holding';
 
     seatCodes.forEach((code: string) => {
       const seatData = {
@@ -95,6 +97,43 @@ export async function POST(req: Request) {
 
     trip.markModified('seatsStatus'); 
     await trip.save();
+
+    // Emit Socket.IO event cho dashboard owner (real-time update)
+    try {
+      const io = (global as any).io;
+      
+      console.log('🔍 Socket.IO check:', {
+        ioAvailable: !!io,
+        companyId: trip.companyId,
+        tripId: trip._id
+      });
+      
+      if (io && trip.companyId) {
+        const roomName = `company_${trip.companyId}`;
+        console.log(`📡 Emitting booking_updated to room: ${roomName}`);
+        
+        const eventData = {
+          type: isOfficePayment ? 'office_booking' : 'vnpay_pending',
+          bookingId: booking._id,
+          amount: totalPrice,
+          customerName: customerInfo.name,
+          seats: seatCodes,
+          status: bookingStatus,
+          timestamp: new Date()
+        };
+        
+        io.to(roomName).emit('booking_updated', eventData);
+        
+        console.log('✅ Socket event emitted successfully:', eventData);
+      } else {
+        console.warn('⚠️ Socket.IO not available or no companyId:', {
+          ioAvailable: !!io,
+          companyId: trip.companyId
+        });
+      }
+    } catch (socketError) {
+      console.error('❌ Socket emit error:', socketError);
+    }
 
     return NextResponse.json({ success: true, data: booking });
 

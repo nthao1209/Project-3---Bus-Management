@@ -397,15 +397,13 @@ export interface Payment {
   bookingId: Types.ObjectId;
   userId?: Types.ObjectId;
   amount: number;
- method: { 
-    type: String, 
-    enum: ['offline', 'vnpay'], 
-    default: 'vnpay' 
-  };
-   status: 'pending' | 'success' | 'failed';
+  method: 'offline' | 'vnpay';
+  status: 'pending' | 'success' | 'failed';
   transactionId?: string;
+  vnpayTransactionNo?: string; // VNPay transaction number từ IPN
   bankCode?: string;
   paymentDate?: Date;
+  expiresAt?: Date; // Thời gian hết hạn link thanh toán (15 phút)
   qrContent?: string;
   createdAt?: Date;
   updatedAt?: Date;
@@ -418,8 +416,10 @@ const PaymentSchema = new Schema<Payment>({
   method: { type: String, enum: ['offline', 'vnpay'], default: 'vnpay' },
   status: { type: String, enum: ['pending', 'success', 'failed'], default: 'pending' },
   transactionId: { type: String },
+  vnpayTransactionNo: { type: String }, // VNPay transaction number
   bankCode: { type: String },
   paymentDate: { type: Date },
+  expiresAt: { type: Date }, // Expiration time
   qrContent: { type: String } 
 }, { timestamps: true });
 

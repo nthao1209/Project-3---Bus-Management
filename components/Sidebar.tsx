@@ -14,7 +14,10 @@ import {
   ScheduleOutlined,
   TeamOutlined,
   FileTextOutlined,
-  CalendarOutlined
+  CalendarOutlined,
+  // Thêm icon cho nút toggle
+  MenuFoldOutlined,
+  MenuUnfoldOutlined
 } from '@ant-design/icons';
 
 const { Sider } = Layout;
@@ -31,11 +34,13 @@ function getItem(
   return { key, icon, label } as MenuItem;
 }
 
+// 1. Cập nhật Interface nhận thêm hàm setCollapsed
 interface SidebarProps {
   collapsed: boolean;
+  setCollapsed: (value: boolean) => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
+const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
   const pathname = usePathname();
   const [role, setRole] = useState<Role | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,7 +58,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         }
 
         const data = await res.json();
-        setRole(data.role);
+        setRole(data.user?.role || data.role || null);
       } catch {
         setRole(null);
       } finally {
@@ -64,97 +69,29 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
     fetchMe();
   }, []);
 
-  // ✅ MENU CONFIG THEO ROLE
   const menuConfig = [
     // ADMIN
-    {
-      path: '/admin/dashboard',
-      label: 'Tổng quan',
-      icon: <DashboardOutlined />,
-      roles: ['admin'],
-    },
-    {
-      path: '/admin/companies',
-      label: 'Quản lý Nhà xe',
-      icon: <ShopOutlined />,
-      roles: ['admin'],
-    },
-    {
-      path: '/admin/users',
-      label: 'Người dùng',
-      icon: <UserOutlined />,
-      roles: ['admin'],
-    },
-    {
-      path: '/admin/stations',
-      label: 'Quản lý bến xe',
-      icon: <CarOutlined />,
-      roles: ['admin'],
-    },
+    { path: '/admin/dashboard', label: 'Tổng quan', icon: <DashboardOutlined />, roles: ['admin'] },
+    { path: '/admin/companies', label: 'Quản lý Nhà xe', icon: <ShopOutlined />, roles: ['admin'] },
+    { path: '/admin/users', label: 'Người dùng', icon: <UserOutlined />, roles: ['admin'] },
+    { path: '/admin/stations', label: 'Quản lý bến xe', icon: <CarOutlined />, roles: ['admin'] },
 
     // OWNER
-    {
-      path: '/owner/dashboard',
-      label: 'Tổng quan',
-      icon: <DashboardOutlined />,
-      roles: ['owner'],
-    },
-    {
-      path: '/owner/companies',
-      label: 'Quản lý nhà xe',
-      icon: <CarOutlined />,
-      roles: ['owner'],
-    },
-     {
-      path: '/owner/buses',
-      label: 'Quản lý Xe',
-      icon: <CarOutlined />,
-      roles: ['owner'],
-    },
-    {
-      path: '/owner/routes',
-      label: 'Quản lý tuyến đường ',
-      icon: <CompassOutlined />,
-      roles: ['owner'],
-    },
-    { 
-      path: '/owner/trip-templates', 
-      label: 'Cấu hình Lịch biểu', 
-      icon: <CalendarOutlined />, 
-      roles: ['owner'] 
-    },
-    {
-      path: '/owner/trips',
-      label: 'Lịch chạy',
-      icon: <ScheduleOutlined />,
-      roles: ['owner'],
-    },
-    {
-      path: '/owner/drivers',
-      label: ' Quản lý tài xế ',
-      icon: <TeamOutlined />,
-      roles: ['owner'],
-    },
-    {
-      path: '/owner/bookings',
-      label: 'Vé đặt',
-      icon: <FileTextOutlined />,
-      roles: ['owner'],
-    },
+    { path: '/owner/dashboard', label: 'Tổng quan', icon: <DashboardOutlined />, roles: ['owner'] },
+    { path: '/owner/companies', label: 'Quản lý nhà xe', icon: <CarOutlined />, roles: ['owner'] },
+    { path: '/owner/buses', label: 'Quản lý Xe', icon: <CarOutlined />, roles: ['owner'] },
+    { path: '/owner/routes', label: 'Quản lý tuyến đường ', icon: <CompassOutlined />, roles: ['owner'] },
+    { path: '/owner/trip-templates', label: 'Cấu hình Lịch biểu', icon: <CalendarOutlined />, roles: ['owner'] },
+    { path: '/owner/trips', label: 'Lịch chạy', icon: <ScheduleOutlined />, roles: ['owner'] },
+    { path: '/owner/drivers', label: 'Quản lý tài xế ', icon: <TeamOutlined />, roles: ['owner'] },
+    { path: '/owner/bookings', label: 'Vé đặt', icon: <FileTextOutlined />, roles: ['owner'] },
   ];
 
   const items: MenuItem[] = useMemo(() => {
     if (!role) return [];
-
     return menuConfig
       .filter(item => item.roles.includes(role))
-      .map(item =>
-        getItem(
-          <Link href={item.path}>{item.label}</Link>,
-          item.path,
-          item.icon
-        )
-      );
+      .map(item => getItem(<Link href={item.path}>{item.label}</Link>, item.path, item.icon));
   }, [role]);
 
   if (loading) {
@@ -171,24 +108,38 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
     <Sider
       collapsible
       collapsed={collapsed}
-      trigger={null}
+      trigger={null} 
       theme="dark"
       width={250}
-      className="min-h-screen overflow-auto"
+      className="min-h-screen relative flex flex-col" 
     >
-      {/* LOGO */}
-      <div className="h-16 flex items-center justify-center bg-black/20 m-2 rounded-lg">
-        <span className="text-white font-bold text-xl">
+      <div className={`h-16 flex items-center justify-center bg-white/10 m-2 rounded-lg transition-all duration-300 ${collapsed ? 'px-0' : 'px-4'}`}>
+        <span className="text-white font-bold text-xl truncate">
           {collapsed ? 'B1' : 'BusOne'}
         </span>
       </div>
 
-      <Menu
-        theme="dark"
-        mode="inline"
-        selectedKeys={[pathname]}
-        items={items}
-      />
+      <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar">
+        <Menu
+          theme="dark"
+          mode="inline"
+          selectedKeys={[pathname]}
+          items={items}
+          style={{ borderRight: 0 }}
+        />
+      </div>
+
+      <div 
+        onClick={() => setCollapsed(!collapsed)}
+        className="
+          h-12 border-t border-gray-700 
+          flex items-center justify-center 
+          cursor-pointer hover:bg-white/10 hover:text-blue-400 transition-colors
+          text-gray-400 text-lg
+        "
+      >
+        {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+      </div>
     </Sider>
   );
 };

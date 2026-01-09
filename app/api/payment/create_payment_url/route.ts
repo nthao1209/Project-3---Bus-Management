@@ -27,9 +27,15 @@ export async function POST(req: Request) {
             bookingId,
             userId: session?.userId,
             amount,
-            method: 'vnpay', // Nhớ đã add 'vnpay' vào enum trong Model chưa nhé
+            method: 'vnpay',
             status: 'pending',
+            // Thêm expiration time: VNPay link hết hạn sau 15 phút
+            expiresAt: new Date(Date.now() + 15 * 60 * 1000),
         });
+    } else {
+        // Cập nhật expiration time nếu user tạo lại link
+        payment.expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+        await payment.save();
     }
 
     // 3. Chuẩn bị tham số VNPAY

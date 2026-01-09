@@ -2,165 +2,280 @@ import { NextResponse } from 'next/server';
 import { dbConnect } from '@/lib/dbConnect';
 import { Trip, TripTemplate, Bus } from '@/models/models';
 
+/* =======================
+   Tạo trạng thái ghế
+======================= */
 const generateSeatsStatus = (seatLayout: any) => {
   const seats: Record<string, any> = {};
 
-  if (!seatLayout) {
-    console.warn("⚠️ generateSeatsStatus: seatLayout is null/undefined");
-    return seats;
-  }
-  
-  // Kiểm tra xem schema có tồn tại và là Array không
-  if (!seatLayout.schema || !Array.isArray(seatLayout.schema)) {
-    console.warn("⚠️ generateSeatsStatus: seatLayout.schema is missing or not an array", JSON.stringify(seatLayout));
+  if (!seatLayout?.schema || !Array.isArray(seatLayout.schema)) {
+    console.warn('[SEAT] Invalid seatLayout:', seatLayout);
     return seats;
   }
 
   seatLayout.schema.forEach((row: any[]) => {
-    if (Array.isArray(row)) {
-      row.forEach(seatCode => {
-        // Chỉ bỏ qua nếu là null, undefined hoặc chuỗi rỗng (chấp nhận số 0)
-        if (seatCode === null || seatCode === undefined || seatCode === '') return;
-        
-        // Tạo object đúng cấu trúc SeatInfoSchema
-        seats[String(seatCode)] = { 
-          status: 'available',
-          bookingId: undefined, // Explicitly undefined is fine
-          holdExpireAt: undefined
-        };
-      });
-    }
+    if (!Array.isArray(row)) return;
+
+    row.forEach(seatCode => {
+      if (!seatCode) return;
+
+      seats[String(seatCode)] = {
+        status: 'available',
+        bookingId: null,
+        holdExpireAt: null,
+      };
+    });
   });
 
-  // Log kết quả cuối cùng trước khi lưu
-  console.log(`✅ Generated ${Object.keys(seats).length} seats`);
+  console.log('[SEAT] Generated seats:', Object.keys(seats).length);
   return seats;
 };
 
-
+/* =======================
+   Tạo Date từ HH:mm
+======================= */
 const createDateFromTime = (baseDate: Date, timeStr: string) => {
-  if (!timeStr || typeof timeStr !== 'string') throw new Error('Invalid timeStr');
-  const [hours, minutes] = timeStr.trim().split(':').map(Number);
-  const date = new Date(baseDate);
-  date.setHours(hours, minutes, 0, 0);
-  return date;
+  const [h, m] = timeStr.split(':').map(Number);
+  const d = new Date(baseDate);
+  d.setHours(h, m, 0, 0);
+  return d;
 };
 
-const calculateInstancePoints = (departureTime: Date, points: any[]) => {
-  if (!Array.isArray(points)) return [];
-  
-  return points.map((p) => {
-    const pointTime = new Date(departureTime.getTime() + (p.timeOffset || 0) * 60000);
-    
-    return {
-      stationId: p.stationId,
+/* =======================
+   Tính pickup / dropoff
+======================= */
+const calculateTripPoints = (
+  baseDate: Date,
+  points: any[],
+  direction: 'forward' | 'backward'
+) => {
+  if (!Array.isArray(points)) {
+    console.warn('[POINT] points is not array');
+    return [];
+  }
+
+  const validPoints = points.filter(
+    p => p && p.name && p.name.trim() !== ''
+  );
+
+  console.log(`[POINT] ${direction} points count:`, validPoints.length);
+
+  if (direction === 'forward') {
+    let prevTime: Date | null = null;
+
+    return validPoints.map((p, idx) => {
+      const offset = Number(p.timeOffset) || 0;
+
+      const time = p.time
+        ? new Date(p.time)
+        : new Date(
+            (prevTime ? prevTime.getTime() : baseDate.getTime()) +
+              offset * 60000
+          );
+
+      prevTime = new Date(time);
+
+      const result = {
+        stationId: p.stationId || null,
+        name: p.name,
+        address: p.address || '',
+        time,
+        surcharge: Number(p.defaultSurcharge ?? p.surcharge ?? 0),
+      };
+
+      console.log(`[POINT][FORWARD][${idx}]`, result);
+      return result;
+    });
+  }
+
+  // backward
+  const pts = [...validPoints];
+  let nextTime: Date | null = null;
+
+  for (let i = pts.length - 1; i >= 0; i--) {
+    const p = pts[i];
+    const offset = Number(p.timeOffset) || 0;
+
+    const time: Date = p.time
+      ? new Date(p.time)
+      : new Date(
+          (nextTime ? nextTime.getTime() : baseDate.getTime()) -
+            offset * 60000
+        );
+
+    nextTime = new Date(time);
+
+    pts[i] = {
+      stationId: p.stationId || null,
       name: p.name,
-      address: p.address,
-      time: pointTime,           // Lưu giờ cụ thể vào DB
-      surcharge: p.defaultSurcharge || 0 // Chốt giá phụ thu
+      address: p.address || '',
+      time,
+      surcharge: Number(p.defaultSurcharge ?? p.surcharge ?? 0),
     };
-  });
+
+    console.log(`[POINT][BACKWARD][${i}]`, pts[i]);
+  }
+
+  return pts;
 };
 
+/* =======================
+   API POST
+======================= */
 export async function POST(req: Request) {
   try {
+    console.log('========== GENERATE TRIPS START ==========');
     await dbConnect();
+
+    const body = await req.json().catch(() => ({}));
+    console.log('[BODY]', body);
+
+    const startDate = body.startDate
+      ? new Date(body.startDate)
+      : new Date();
+
+    const endDate = body.endDate
+      ? new Date(body.endDate)
+      : (() => {
+          const d = new Date();
+          d.setDate(d.getDate() + 30);
+          return d;
+        })();
+
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(0, 0, 0, 0);
+
+    const daysToGenerate =
+      Math.floor((endDate.getTime() - startDate.getTime()) / 86400000) + 1;
+
+    console.log('[DATE RANGE]', {
+      startDate,
+      endDate,
+      daysToGenerate,
+    });
 
     const templates = await TripTemplate.find({ active: true })
       .populate('routeId')
       .lean();
 
+    console.log('[TEMPLATE] Found:', templates.length);
+
     if (!templates.length) {
       return NextResponse.json({
         success: true,
-        message: 'Không có TripTemplate nào đang active'
+        message: 'Không có TripTemplate active',
       });
     }
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const daysToGenerate = 30;
     let createdCount = 0;
 
     for (const template of templates) {
-      if (!template.routeId) continue;
+      console.log('--- TEMPLATE ---', template._id);
+
+      const route = template.routeId as any;
+      if (!route) {
+        console.warn('[ROUTE] Missing route');
+        continue;
+      }
 
       for (let i = 0; i < daysToGenerate; i++) {
-        const tripDate = new Date(today);
-        tripDate.setDate(today.getDate() + i);
+        const tripDate = new Date(startDate);
+        tripDate.setDate(startDate.getDate() + i);
 
-        // 2. Check ngày chạy trong tuần
         if (
           Array.isArray(template.daysOfWeek) &&
-          template.daysOfWeek.length > 0 &&
+          template.daysOfWeek.length &&
           !template.daysOfWeek.includes(tripDate.getDay())
         ) {
+          console.log('[SKIP] Not in daysOfWeek:', tripDate);
           continue;
         }
 
-        // 3. Tạo giờ chạy
         const departureTime = createDateFromTime(
           tripDate,
           template.departureTimeStr
         );
 
         const arrivalTime = new Date(
-          departureTime.getTime() + template.durationMinutes * 60000
+          departureTime.getTime() +
+            template.durationMinutes * 60000
         );
 
-        // 5. Check trùng chuyến (cùng xe + cùng ngày + cùng giờ)
-         const exists = await Trip.exists({
+        console.log('[TIME]', {
+          departureTime,
+          arrivalTime,
+        });
+
+        const exists = await Trip.exists({
           busId: template.busId,
           departureTime: {
             $gte: new Date(departureTime.getTime() - 5 * 60000),
-            $lte: new Date(departureTime.getTime() + 5 * 60000)
+            $lte: new Date(departureTime.getTime() + 5 * 60000),
           },
-          status: { $ne: 'cancelled' }
+          status: { $ne: 'cancelled' },
         });
-        if (exists) continue;
 
-        // 4. Pickup / Dropoff
-        const pickupPoints =
-          template.pickupPoints?.length > 0
+        if (exists) {
+          console.log('[SKIP] Trip already exists');
+          continue;
+        }
+
+        const pickupSource =
+          template.pickupPoints?.length
             ? template.pickupPoints
-            : template.routeId.defaultPickupPoints ?? [];
+            : route.defaultPickupPoints || [];
 
-        const dropoffPoints =
-          template.dropoffPoints?.length > 0
+        const dropoffSource =
+          template.dropoffPoints?.length
             ? template.dropoffPoints
-            : template.routeId.defaultDropoffPoints ?? [];
- 
-        const finalPickupPoints = calculateInstancePoints(departureTime, pickupPoints);
-        const finalDropoffPoints = calculateInstancePoints(departureTime, dropoffPoints);
+            : route.defaultDropoffPoints || [];
+
+        const pickupPoints = calculateTripPoints(
+          departureTime,
+          pickupSource,
+          'forward'
+        );
+
+        const dropoffPoints = calculateTripPoints(
+          arrivalTime,
+          dropoffSource,
+          'backward'
+        );
 
         const bus = await Bus.findById(template.busId).lean();
-        if (!bus) continue;
+        if (!bus) {
+          console.warn('[BUS] Not found:', template.busId);
+          continue;
+        }
 
         const seatsStatus = generateSeatsStatus(bus.seatLayout);
 
-        // 6. Tạo Trip
-        await Trip.create({
+        const createdTrip = await Trip.create({
           companyId: template.companyId,
-          routeId: template.routeId._id,
+          routeId: route._id,
           busId: template.busId,
           driverId: template.driverId,
           departureTime,
           arrivalTime,
           basePrice: template.basePrice,
-          pickupPoints: finalPickupPoints,
-          dropoffPoints: finalDropoffPoints,
-          status: 'scheduled',
+          pickupPoints,
+          dropoffPoints,
           seatsStatus,
+          status: 'scheduled',
         });
 
+        console.log('[CREATED TRIP]', createdTrip._id);
         createdCount++;
       }
     }
 
+    console.log('========== GENERATE TRIPS END ==========');
+
     return NextResponse.json({
       success: true,
-      message: `Đã sinh ${createdCount} chuyến mới cho ${daysToGenerate} ngày tới`
+      message: `Đã sinh ${createdCount} chuyến từ ${startDate
+        .toISOString()
+        .slice(0, 10)} đến ${endDate.toISOString().slice(0, 10)}`,
     });
   } catch (error: any) {
     console.error('Generate trips error:', error);
@@ -168,7 +283,7 @@ export async function POST(req: Request) {
     return NextResponse.json(
       {
         success: false,
-        message: error.message || 'Server error'
+        message: error.message || 'Server error',
       },
       { status: 500 }
     );

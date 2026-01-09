@@ -67,9 +67,7 @@ const calculateTripPoints = (
   return pts;
 };
 
-/* =======================
-   TẠO TRẠNG THÁI GHẾ
-======================= */
+
 const generateSeatsStatus = (seatLayout: any) => {
   const seats: Record<string, any> = {};
 
@@ -95,9 +93,7 @@ const generateSeatsStatus = (seatLayout: any) => {
   return seats;
 };
 
-/* =======================
-   GET: LẤY DANH SÁCH TRIP
-======================= */
+
 export async function GET(req: Request) {
   try {
     await dbConnect();
@@ -143,9 +139,7 @@ export async function GET(req: Request) {
   }
 }
 
-/* =======================
-   POST: TẠO TRIP
-======================= */
+
 export async function POST(req: Request) {
   try {
     await dbConnect();

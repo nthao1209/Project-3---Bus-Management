@@ -2,6 +2,7 @@
   "name": "bus-management",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "ts-node server.ts",
     "build": "next build",
@@ -14,6 +15,7 @@
     "antd": "^6.0.1",
     "bcryptjs": "^3.0.3",
     "cookie": "^1.1.1",
+    "dayjs": "^1.11.10",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^9.0.0",
     "next": "16.0.6",

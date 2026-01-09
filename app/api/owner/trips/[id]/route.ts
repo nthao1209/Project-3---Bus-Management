@@ -14,8 +14,7 @@ const calculateTripPoints = (baseDate: Date, points: any[]) => {
   const validPoints = points.filter(p => p && p.name && p.name.trim() !== '');
 
   return validPoints.map(p => {
-    // Nếu p.timeOffset tồn tại thì tính theo Offset
-    // Nếu không (trường hợp data cũ), giữ nguyên logic hoặc coi offset=0
+   
     const offset = Number(p.timeOffset) || 0;
     const pointTime = new Date(baseDate.getTime() + offset * 60000);
 
@@ -81,6 +80,8 @@ export async function PUT(req: Request, { params }: RouteParams) {
     if (!session) return NextResponse.json({ message: 'Chưa xác thực' }, { status: 401 });
 
     const body = await req.json();
+    const ALLOWED_STATUS = ['scheduled', 'running', 'completed', 'cancelled'];
+
     const trip = await Trip.findById(id);
     
     if (!trip) return NextResponse.json({ message: 'Không tìm thấy chuyến đi' }, { status: 404 });
@@ -99,7 +100,22 @@ export async function PUT(req: Request, { params }: RouteParams) {
       }
     }
 
-    const updateData: any = { ...body };
+    const updateData: any = {};
+
+    if (body.departureTime) updateData.departureTime = newDepartureTime;
+    if (body.basePrice !== undefined) updateData.basePrice = body.basePrice;
+    if (body.driverId !== undefined) updateData.driverId = body.driverId;
+    if (body.busId !== undefined) updateData.busId = body.busId;
+
+    if (body.status) {
+      if (!ALLOWED_STATUS.includes(body.status)) {
+        return NextResponse.json(
+          { message: 'Trạng thái không hợp lệ' },
+          { status: 400 }
+        );
+      }
+      updateData.status = body.status;
+    }
 
     if (body.pickupPoints && Array.isArray(body.pickupPoints)) {
       updateData.pickupPoints = calculateTripPoints(newDepartureTime, body.pickupPoints);
