@@ -48,7 +48,6 @@ export async function POST(req: Request) {
     }
 
     const isOfficePayment = paymentMethod === 'office';
-    // Cả VNPay và Office payment đều là pending_payment cho đến khi thanh toán thực sự
     const bookingStatus = 'pending_payment';
 
     const paymentExpireAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 giờ cho cả 2 loại
@@ -77,7 +76,6 @@ export async function POST(req: Request) {
     });
 
     
-    // Cả 2 loại đều holding cho đến khi thanh toán
     const newSeatStatus = 'holding';
 
     seatCodes.forEach((code: string) => {
@@ -98,11 +96,10 @@ export async function POST(req: Request) {
     trip.markModified('seatsStatus'); 
     await trip.save();
 
-    // Emit Socket.IO event cho dashboard owner (real-time update)
     try {
       const io = (global as any).io;
       
-      console.log('🔍 Socket.IO check:', {
+      console.log(' Socket.IO check:', {
         ioAvailable: !!io,
         companyId: trip.companyId,
         tripId: trip._id
@@ -110,7 +107,7 @@ export async function POST(req: Request) {
       
       if (io && trip.companyId) {
         const roomName = `company_${trip.companyId}`;
-        console.log(`📡 Emitting booking_updated to room: ${roomName}`);
+        console.log(`Emitting booking_updated to room: ${roomName}`);
         
         const eventData = {
           type: isOfficePayment ? 'office_booking' : 'vnpay_pending',
@@ -123,6 +120,12 @@ export async function POST(req: Request) {
         };
         
         io.to(roomName).emit('booking_updated', eventData);
+        
+        io.to(`trip_${booking.tripId}`).emit('new_booking', {
+          bookingId: booking._id,
+          seatCodes: booking.seatCodes,
+          customerName: booking.customerInfo.name
+        });
         
         console.log('✅ Socket event emitted successfully:', eventData);
       } else {

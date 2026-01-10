@@ -174,7 +174,12 @@ export async function POST(req: Request) {
         { message: 'Ngày giờ không hợp lệ' },
         { status: 400 }
       );
-
+    if (arrDate.getTime() <= depDate.getTime()) {
+      return NextResponse.json(
+        { message: 'Giờ đến phải lớn hơn giờ khởi hành' },
+        { status: 400 }
+      );
+    }
     const company = await Company.findOne({
       _id: companyId,
       ownerId: session.userId

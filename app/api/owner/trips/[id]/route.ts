@@ -71,7 +71,6 @@ export async function GET(req: Request, { params }: RouteParams) {
   }
 }
 
-// 2. PUT: Sửa chuyến đi
 export async function PUT(req: Request, { params }: RouteParams) {
   try {
     await dbConnect();
@@ -100,9 +99,25 @@ export async function PUT(req: Request, { params }: RouteParams) {
       }
     }
 
+    let newArrivalTime = trip.arrivalTime;
+    if (body.arrivalTime) {
+      newArrivalTime = new Date(body.arrivalTime);
+      if (isNaN(newArrivalTime.getTime())) {
+        return NextResponse.json({ message: 'Giờ đến lỗi' }, { status: 400 });
+      }
+    }
+    
+    if (newArrivalTime.getTime() <= newDepartureTime.getTime()) {
+      return NextResponse.json(
+        { message: 'Giờ đến phải lớn hơn giờ khởi hành' },
+        { status: 400 }
+      );
+    }
+
     const updateData: any = {};
 
     if (body.departureTime) updateData.departureTime = newDepartureTime;
+    if (body.arrivalTime) updateData.arrivalTime = newArrivalTime;
     if (body.basePrice !== undefined) updateData.basePrice = body.basePrice;
     if (body.driverId !== undefined) updateData.driverId = body.driverId;
     if (body.busId !== undefined) updateData.busId = body.busId;
@@ -127,7 +142,7 @@ export async function PUT(req: Request, { params }: RouteParams) {
           name: p.name,
           address: p.address,
           surcharge: p.surcharge,
-          time: new Date(new Date(p.time).getTime() + timeDiff) // Cộng thêm độ lệch
+          time: new Date(new Date(p.time).getTime() + timeDiff) 
         }));
       }
     }

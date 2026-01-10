@@ -37,7 +37,7 @@ export default function LoginPage() {
           router.push('/admin/dashboard');
           break;
         case 'driver':
-          router.push('/driver/schedule');
+          router.push('/driver');
           break;
         case 'owner':
           router.push('/owner/dashboard');
