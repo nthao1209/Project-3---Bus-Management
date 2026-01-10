@@ -2,12 +2,12 @@ import { NextResponse } from 'next/server';
 import { dbConnect } from '@/lib/dbConnect';
 import { User } from '@/models/models';
 
-type RouteParams = { params: { id: string } }; // không phải Promise
+type RouteParams = { params: Promise<{ id: string }> };
 
 // PUT: Cập nhật trạng thái
 export async function PUT(req: Request, { params }: RouteParams) {
   await dbConnect();
-  const { id } = params;
+  const { id } = await params;
   const { isActive } = await req.json(); // true hoặc false
 
   await User.findByIdAndUpdate(id, { isActive });
@@ -18,7 +18,7 @@ export async function PUT(req: Request, { params }: RouteParams) {
 export async function DELETE(req: Request, { params }: RouteParams) {
   try {
     await dbConnect();
-    const { id } = params;
+    const { id } = await params;
 
     const deletedUser = await User.findByIdAndDelete(id);
     if (!deletedUser) {

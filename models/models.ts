@@ -478,6 +478,21 @@ const GpsLogSchema = new Schema<GpsLog>({
 });
 
 
+export interface Settings {
+  key: string;
+  value: any;
+  updatedBy?: Types.ObjectId;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+const SettingsSchema = new Schema<Settings>({
+  key: { type: String, required: true, unique: true },
+  value: { type: Schema.Types.Mixed, required: true },
+  updatedBy: { type: Schema.Types.ObjectId, ref: 'User' }
+}, { timestamps: true });
+
+
 export const User = mongoose.models.User || mongoose.model<User>('User', UserSchema);
 export const Company = mongoose.models.Company || mongoose.model<Company>('Company', CompanySchema);
 export const Bus = mongoose.models.Bus || mongoose.model<Bus>('Bus', BusSchema);
@@ -489,3 +504,5 @@ export const Payment = mongoose.models.Payment || mongoose.model<Payment>('Payme
 export const Notification = mongoose.models.Notification || mongoose.model<Notification>('Notification', NotificationSchema);
 export const GpsLog = mongoose.models.GpsLog || mongoose.model<GpsLog>('GpsLog', GpsLogSchema);
 export const TripTemplate = mongoose.models.TripTemplate || mongoose.model<TripTemplate>('TripTemplate', TripTemplateSchema);
+export const Settings = mongoose.models.Settings || mongoose.model<Settings>('Settings', SettingsSchema);
+

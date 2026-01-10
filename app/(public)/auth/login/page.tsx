@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { Form, Input, Button, Checkbox, Card, Typography, message } from 'antd';
-import { UserOutlined, LockOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, ShopOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -28,7 +28,6 @@ export default function LoginPage() {
       }
 
       message.success('Đăng nhập thành công!');
-      // notify client components that auth state changed so they can re-fetch immediately
       window.dispatchEvent(new Event('authChanged'));
       localStorage.setItem('user_info', JSON.stringify(data.user));
 
@@ -85,12 +84,12 @@ export default function LoginPage() {
             <Input.Password prefix={<LockOutlined />} placeholder="Mật khẩu" />
           </Form.Item>
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
+          {/* <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 24 }}>
             <Form.Item name="remember" valuePropName="checked" noStyle>
               <Checkbox>Ghi nhớ tôi</Checkbox>
-            </Form.Item>
-            <a style={{ color: '#1677ff' }} href="#">Quên mật khẩu?</a>
-          </div>
+            </Form.Item> */}
+            {/* <a style={{ color: '#1677ff' }} href="#">Quên mật khẩu?</a> */}
+          {/* </div> */}
 
           <Form.Item>
             <Button type="primary" htmlType="submit" block loading={loading}>
@@ -98,10 +97,42 @@ export default function LoginPage() {
             </Button>
           </Form.Item>
 
-          <div style={{ textAlign: 'center' }}>
+          <div style={{ marginTop: 24 }}>
+
+          <div style={{ textAlign: 'center', marginBottom: 16 }}>
             <Text>Chưa có tài khoản? </Text>
-            <Link href="/auth/register" style={{ color: '#1677ff' }}>Đăng ký ngay</Link>
+            <Link href="/auth/register" style={{ color: '#1677ff', fontWeight: 500 }}>
+              Đăng ký ngay
+            </Link>
           </div>
+
+        <div
+          style={{
+            background: 'linear-gradient(135deg, #e6f4ff, #fefce8)',
+            border: '1px solid #bae6fd',
+            borderRadius: 12,
+            padding: 16,
+            textAlign: 'center',
+          }}
+        >
+          <ShopOutlined style={{ fontSize: 26, color: '#1677ff' }} />
+          <Title level={5} style={{ margin: '8px 0 4px' }}>
+            Bạn là chủ nhà xe?
+          </Title>
+          <Text type="secondary">
+            Đăng ký mở bán vé và quản lý nhà xe trên BusOne
+          </Text>
+
+            <div style={{ marginTop: 12 }}>
+              <Link href="/auth/owner-register">
+                <Button type="primary" size="middle">
+                  Đăng ký mở bán vé
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+
         </Form>
       </Card>
     </div>

@@ -4,7 +4,7 @@ import { Company, User } from '@/models/models';
 import { getCurrentUser } from '@/lib/auth';
 
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await dbConnect();
     const session = await getCurrentUser();
@@ -26,7 +26,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
 }
 
 
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await dbConnect();
     const session = await getCurrentUser();
@@ -52,7 +52,7 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
 }
 
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await dbConnect();
     const session = await getCurrentUser();

@@ -1,14 +1,17 @@
   'use client';
 
-  import React, { useEffect, useState } from 'react';
+  import React, { useEffect, useState, useRef } from 'react';
   import {
     Button,
     Dropdown,
     Avatar,
     MenuProps,
     message,
-    Tooltip,
     Image,
+    Badge,
+    List,
+    Typography,
+    Popover,
   } from 'antd';
   import {
     QuestionCircleOutlined,
@@ -16,14 +19,13 @@
     LogoutOutlined,
     ProfileOutlined,
     HistoryOutlined,
-    ShopOutlined,
     MenuOutlined,
-    DashboardOutlined,
+    BellOutlined,
   } from '@ant-design/icons';
   import Link from 'next/link';
   import { useRouter } from 'next/navigation';
+  import { io as ioClient, Socket } from 'socket.io-client';
 
-  /* ================= TYPES ================= */
   type Role = 'user' | 'owner' | 'driver' | 'admin';
 
   interface UserInfo {
@@ -33,7 +35,6 @@
     role: Role;
   }
 
-  /* ================= ROLE LABEL ================= */
   const roleLabelMap: Record<Role, string> = {
     user: 'Khách hàng',
     owner: 'Chủ nhà xe',
@@ -41,7 +42,6 @@
     admin: 'Quản trị viên',
   };
 
-  /* ================= UI CONFIG ================= */
   const roleUI = {
     user: {
       showMyTickets: true,
@@ -53,39 +53,31 @@
       showMyTickets: false,
       showProfile: true,
       showOwnerRegister: false,
-      dashboard: {
-        label: "Quản lý nhà xe",
-        href: 'owner/stations',
-        icon : <ShopOutlined />,
-      }
     },
     driver: {
       showMyTickets: false,
       showProfile: false,
       showOwnerRegister: false,
-      dashboard: {
-        label: "Lịch trình tài xế",
-        href: '/driver/trips',
-        icon: <DashboardOutlined />
-      }
     },
     admin: {
       showMyTickets: false,
       showProfile: false,
       showOwnerRegister: false,
-      dashboard: {
-        label: "Trang quản trị",
-        href: '/admin/dashboard',
-        icon: <DashboardOutlined/>,
-      }
     },
   };
 
   export default function Header() {
     const router = useRouter();
     const [user, setUser] = useState<UserInfo | null>(null);
+    const [notifications, setNotifications] = useState<any[]>([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const socketRef = useRef<Socket | null>(null);
 
     const currentUI = user ? roleUI[user.role] : null;
+    const showNotification =
+          user && (user.role === 'user' || user.role === 'driver');
+    const isUser = user?.role === 'user';
+
 
     useEffect(() => {
       const loadUser = async () => {
@@ -104,7 +96,6 @@
         }
       };
 
-      // Re-fetch user when auth changes (login/logout) so header updates immediately
       const handleAuthChanged = () => {
         loadUser();
       };
@@ -114,12 +105,102 @@
       return () => window.removeEventListener('authChanged', handleAuthChanged);
     }, []);
 
-    /* ================= LOGOUT ================= */
+    const fetchNotifications = async () => {
+      if (!user) return;
+      try {
+        const res = await fetch('/api/notifications');
+        if (res.ok) {
+          const data = await res.json();
+          setNotifications(data.data || []);
+          setUnreadCount(data.data.filter((n: any) => !n.isRead).length);
+        }
+      } catch (error) {
+        console.error('Failed to fetch notifications:', error);
+      }
+    };
+
+    useEffect(() => {
+      if (user) {
+        console.log('[NOTIFICATION] User logged in, setting up notifications for userId:', user.userId);
+        fetchNotifications();
+        const interval = setInterval(fetchNotifications, 30000);
+        try {
+          console.log('[SOCKET] Connecting to Socket.IO...');
+          const s = ioClient({ path: '/socket.io' });
+          socketRef.current = s as Socket;
+          s.on('connect', () => {
+            console.log('[SOCKET] Connected! Socket ID:', s.id);
+            try {
+              console.log('[SOCKET] Joining user room:', user.userId);
+              s.emit('join_user', user.userId);
+            } catch (err) { console.error('[SOCKET] join_user emit error:', err); }
+          });
+
+          s.on('joined_user', (data: any) => {
+            console.log('[SOCKET] Successfully joined user room:', data);
+          });
+
+          s.on('notification', (notif: any) => {
+            console.log('[SOCKET] Received notification:', notif);
+            try {
+              setNotifications(prev => [notif, ...(prev || [])]);
+              setUnreadCount(prev => prev + 1);
+              message.info(notif.title || 'Thông báo mới');
+            } catch (err) { console.error('[SOCKET] notification handler error:', err); }
+          });
+
+          s.on('disconnect', () => {
+            console.log('[SOCKET] Disconnected');
+          });
+
+          s.on('connect_error', (err: any) => {
+            console.error('[SOCKET] Connection error:', err);
+          });
+        } catch (err) {
+          console.error('[SOCKET] Socket setup error:', err);
+        }
+        return () => {
+          clearInterval(interval);
+          if (socketRef.current) {
+            console.log('[SOCKET] Cleaning up socket connection');
+            try { socketRef.current.disconnect(); } catch (e) {}
+            socketRef.current = null;
+          }
+        };
+      }
+    }, [user]);
+
+    useEffect(() => {
+      return () => {
+        if (socketRef.current) {
+          console.log('[SOCKET] Component unmount cleanup');
+          try { socketRef.current.disconnect(); } catch (e) {}
+          socketRef.current = null;
+        }
+      };
+    }, []);
+
+    const markAsRead = async (notificationIds: string[]) => {
+      try {
+        const res = await fetch('/api/notifications', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notificationIds }),
+        });
+        if (res.ok) {
+          setNotifications(prev => prev.map(n => 
+            notificationIds.includes(n._id) ? { ...n, isRead: true } : n
+          ));
+          setUnreadCount(prev => Math.max(0, prev - notificationIds.length));
+        }
+      } catch (error) {
+        console.error('Failed to mark as read:', error);
+      }
+    };
     const handleLogout = async () => {
       try {
         await fetch('/api/auth/logout', { method: 'POST' });
         setUser(null);
-        // notify other components that auth state changed
         window.dispatchEvent(new Event('authChanged'));
         message.success('Đã đăng xuất');
         router.push('/auth/login');
@@ -128,7 +209,6 @@
       }
     };
 
-    /* ================= USER MENU ================= */
     const userMenu: MenuProps['items'] = [
     {
       key: 'info',
@@ -164,72 +244,104 @@
   ];
 
 
-    /* ================= MOBILE MENU ================= */
-    const mobileMenu: MenuProps['items'] = [
-      ...(currentUI?.dashboard
-        ? [
-            {
-              key: 'dashboard',
-              label: <Link href={currentUI.dashboard.href}>{currentUI.dashboard.label}</Link>,
-              icon: currentUI.dashboard.icon,
-            },
-          ]
-        : []),
+    const notificationMenu = (
+      <div style={{ width: 350, maxHeight: 400, overflow: 'auto' }}>
+        <List
+          size="small"
+          dataSource={notifications.slice(0, 10)}
+          renderItem={(item: any) => (
+            <List.Item
+              style={{ 
+                padding: '12px', 
+                backgroundColor: item.isRead ? 'white' : '#f0f8ff',
+                cursor: 'pointer'
+              }}
+              onClick={() => {
+                if (!item.isRead) {
+                  markAsRead([item._id]);
+                }
+                if (item.type === 'trip_reminder' && item.data?.tripId) {
+                  if (user?.role === 'driver') {
+                    router.push(`/driver/trip/${item.data.tripId}`);
+                  } else {
+                    router.push(`/my-tickets`);
+                  }
+                }
+              }}
+            >
+              <List.Item.Meta
+                title={<Typography.Text strong={!item.isRead}>{item.title}</Typography.Text>}
+                description={
+                  <div>
+                    <Typography.Text>{item.message}</Typography.Text>
+                    <br />
+                    <Typography.Text type="secondary" style={{ fontSize: '12px' }}>
+                      {new Date(item.createdAt).toLocaleString('vi-VN')}
+                    </Typography.Text>
+                  </div>
+                }
+              />
+            </List.Item>
+          )}
+        />
+        {notifications.length === 0 && (
+          <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>
+            Không có thông báo
+          </div>
+        )}
+        {notifications.length > 10 && (
+          <div style={{ padding: '10px', textAlign: 'center' }}>
+            <Button type="link" onClick={() => router.push('/notifications')}>
+              Xem tất cả
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+   
 
-      ...(currentUI?.showMyTickets
-        ? [
-            {
-              key: 'my-tickets',
-              label: <Link href="/my-tickets">Đơn hàng của tôi</Link>,
-              icon: <HistoryOutlined />,
-            },
-          ]
-        : []),
-    ];
-
-    /* ================= RENDER ================= */
     return (
       <header className="w-full bg-[#2474E5] text-white sticky top-0 z-50 shadow-md">
         <div className="container mx-auto px-4 h-[60px] flex items-center justify-between">
-          {/* LOGO */}
           <Link href="/">
             <Image src="/Logo.png" alt="Logo" height={42} preview={false} />
           </Link>
 
-          {/* TEXT */}
-          <div className="hidden lg:flex items-center text-[13px] opacity-90">
-            <span>Cam kết hoàn 150% nếu nhà xe không cung cấp dịch vụ (*)</span>
-            <QuestionCircleOutlined className="ml-2 cursor-pointer" />
-          </div>
-
-          {/* RIGHT */}
           <div className="flex items-center gap-4">
 
-            {currentUI?.dashboard && (
-              <Link href={currentUI.dashboard.href} className="hidden md:flex items-center gap-2 font-semibold">
-                {currentUI.dashboard.icon}
-                <span>{currentUI.dashboard.label}</span>
-              </Link>
-            )}
-
-           {currentUI?.showMyTickets && (
-            <Link href="/my-tickets" className="hidden md:block text-black dark:text-white">
-              Đơn hàng của tôi
+          {isUser && (
+            <Link href="/my-tickets">
+              <div
+                className="flex items-center gap-2 px-3 py-2 rounded-lg
+                          border border-white/40
+                          text-white
+                          hover:bg-white/10 hover:border-white
+                          cursor-pointer transition"
+              >
+                <HistoryOutlined />
+                <span className="text-sm font-medium hidden md:inline">
+                  Đơn hàng của tôi
+                </span>
+              </div>
             </Link>
-            )}
+          )}
 
-            {currentUI?.showOwnerRegister && (
-              <Link href="/auth/owner-register" className="hidden lg:block font-semibold text-blue-700 dark:text-yellow-300">
-                Mở bán vé trên BusOne
-              </Link>
-            )}
-
-            <Dropdown
-              menu={{ items: mobileMenu }}
-              placement="bottomRight"
-            >
-              <Button type="text" icon={<MenuOutlined />} className="lg:hidden" />
-            </Dropdown>
+            {showNotification && (
+                <Popover
+                  content={notificationMenu}
+                  trigger="click"
+                  placement="bottomRight"
+                >
+                  <Badge count={unreadCount} offset={[10, 0]}>
+                    <Button
+                      type="text"
+                      icon={<BellOutlined />}
+                      className="!text-white hover:!bg-white/10"
+                      style={{ border: 'none' }}
+                    />
+                  </Badge>
+                </Popover>
+              )}
 
             {user ? (
               <Dropdown menu={{ items: userMenu }} placement="bottomRight">

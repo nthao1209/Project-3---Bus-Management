@@ -36,7 +36,6 @@ export default function CompanyModal({
   }, [open, initialValues, form]);
 
   const handleFinish = (values: any) => {
-    // Gộp địa chỉ
     let finalAddress = values.address;
     if (values.addressDetail && values.ward && values.district && values.province) {
         finalAddress = `${values.addressDetail}, ${values.ward}, ${values.district}, ${values.province}`;
@@ -90,6 +89,18 @@ export default function CompanyModal({
                 </Form.Item>
               </Col>
               <Col xs={24} md={12}>
+              <Form.Item
+                  label="Email đăng nhập"
+                  name="userEmail"
+                  rules={[
+                    { required: true, message: 'Vui lòng nhập email' },
+                    { type: 'email', message: 'Email không hợp lệ' },
+                  ]}
+                >
+                  <Input placeholder="email@example.com" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
                 <Form.Item 
                   name="password" 
                   label="Mật khẩu đăng nhập" 
@@ -107,7 +118,7 @@ export default function CompanyModal({
         <Row gutter={16}>
           <Col xs={24} md={12}>
               <Form.Item 
-                  name="name" 
+                  name="companyName" 
                   label="Tên nhà xe" 
                   rules={[{ required: true, message: 'Nhập tên nhà xe' }]}
               >
@@ -128,7 +139,7 @@ export default function CompanyModal({
         <Row gutter={16}>
           <Col xs={24} md={12}>
               <Form.Item 
-                  name="email" 
+                  name="companyEmail" 
                   label="Email" 
                   rules={[{ type: 'email', required: true, message: 'Nhập email' }]}
               >

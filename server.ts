@@ -2,11 +2,11 @@ import { createServer } from 'http';
 import { parse } from 'url';
 import next from 'next';
 import { Server, Socket } from 'socket.io';
-import mongoose from 'mongoose';
 import 'dotenv/config';
 import { dbConnect } from './lib/dbConnect.ts';
-import { Trip } from './models/models.ts';
+import { Trip, Settings } from './models/models.ts';
 import { validateEnvOrExit } from './lib/validateEnv.ts';
+import * as cron from 'node-cron';
 
 // Validate environment variables before starting
 validateEnvOrExit();
@@ -47,6 +47,21 @@ app.prepare().then(() => {
       if (!trip) return;
 
       socket.emit('sync_seat_status', trip.seatsStatus || {});
+    });
+
+    /**
+     * Join user room for realtime personal notifications
+     * Room name: `user_{userId}`
+     */
+    socket.on('join_user', (userId: string) => {
+      try {
+        const room = `user_${userId}`;
+        socket.join(room);
+        console.log(`🔔 Socket ${socket.id} joined user room: ${room}`);
+        socket.emit('joined_user', { room, userId });
+      } catch (err) {
+        console.error('join_user error:', err);
+      }
     });
 
     /**
@@ -238,6 +253,53 @@ app.prepare().then(() => {
       } catch (err) {
         console.error('disconnect cleanup error:', err);
       }
+    });
+  });
+  
+  // Dynamic cron job for trip reminders
+  let cronTask: cron.ScheduledTask | null = null;
+  
+  const startCronJob = async () => {
+    try {
+      await dbConnect();
+      const setting = await Settings.findOne({ key: 'notification_cron_schedule' });
+      const schedule = setting?.value || '*/5 * * * *'; // Default: every 5 minutes
+      
+      if (cronTask) {
+        cronTask.stop();
+        cronTask = null;
+      }
+      
+      cronTask = cron.schedule(schedule, async () => {
+        try {
+          console.log('🔄 Running trip reminder cron job');
+          const response = await fetch('http://localhost:3000/api/cron/send-trip-reminders', {
+            method: 'POST',
+          });
+          if (response.ok) {
+            console.log('✅ Trip reminders sent');
+          } else {
+            console.error('❌ Failed to send trip reminders');
+          }
+        } catch (error) {
+          console.error('❌ Cron job error:', error);
+        }
+      });
+      
+      console.log(`✅ Cron job started with schedule: ${schedule}`);
+    } catch (error) {
+      console.error('❌ Failed to start cron job:', error);
+    }
+  };
+  
+  // Start initial cron job
+  startCronJob();
+  
+  // Listen for schedule updates from admin
+  io.on('connection', (socket: Socket) => {
+    socket.on('reload_cron_schedule', () => {
+      console.log('⚙️ Reloading cron schedule...');
+      startCronJob();
     });
   });
   

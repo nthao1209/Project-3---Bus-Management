@@ -1,7 +1,4 @@
-/**
- * Pre-warm routes to ensure they are compiled and cached in-memory
- * Run this after app.prepare() to reduce first-request latency
- */
+
 
 export async function warmupRoutes() {
   const criticalRoutes = [
@@ -34,6 +31,10 @@ export async function warmupRoutes() {
     '/admin/users',
     '/admin/companies',
     '/admin/stations',
+    '/admin/settings',
+
+    '/driver',
+    '/driver/trips',
 
     // Pending approval
     '/pending-approval',

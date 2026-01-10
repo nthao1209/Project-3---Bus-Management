@@ -5,7 +5,7 @@ import { Booking, Payment, Trip } from '@/models/models';
 
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await dbConnect();
@@ -15,7 +15,7 @@ export async function POST(
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const bookingId = params.id;
+    const bookingId = (await params).id;
 
     const booking = await Booking.findById(bookingId);
     if (!booking) {

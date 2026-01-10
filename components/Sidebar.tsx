@@ -15,9 +15,9 @@ import {
   TeamOutlined,
   FileTextOutlined,
   CalendarOutlined,
-  // Thêm icon cho nút toggle
   MenuFoldOutlined,
-  MenuUnfoldOutlined
+  MenuUnfoldOutlined,
+  SettingOutlined,
 } from '@ant-design/icons';
 
 const { Sider } = Layout;
@@ -34,7 +34,6 @@ function getItem(
   return { key, icon, label } as MenuItem;
 }
 
-// 1. Cập nhật Interface nhận thêm hàm setCollapsed
 interface SidebarProps {
   collapsed: boolean;
   setCollapsed: (value: boolean) => void;
@@ -70,13 +69,12 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
   }, []);
 
   const menuConfig = [
-    // ADMIN
     { path: '/admin/dashboard', label: 'Tổng quan', icon: <DashboardOutlined />, roles: ['admin'] },
     { path: '/admin/companies', label: 'Quản lý Nhà xe', icon: <ShopOutlined />, roles: ['admin'] },
     { path: '/admin/users', label: 'Người dùng', icon: <UserOutlined />, roles: ['admin'] },
     { path: '/admin/stations', label: 'Quản lý bến xe', icon: <CarOutlined />, roles: ['admin'] },
+    { path: '/admin/settings', label: 'Cài đặt hệ thống', icon: <SettingOutlined />, roles: ['admin'] },
 
-    // OWNER
     { path: '/owner/dashboard', label: 'Tổng quan', icon: <DashboardOutlined />, roles: ['owner'] },
     { path: '/owner/companies', label: 'Quản lý nhà xe', icon: <CarOutlined />, roles: ['owner'] },
     { path: '/owner/buses', label: 'Quản lý Xe', icon: <CarOutlined />, roles: ['owner'] },

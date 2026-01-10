@@ -6,12 +6,12 @@ import { getCurrentUser } from '@/lib/auth';
 
 const HOLD_TIMEOUT = 5 * 60 * 1000; // 5 phút
 
-export async function POST(req: Request, { params }: { params: { id: string } }) {
+export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getCurrentUser();
     if (!session) return NextResponse.json({ message: 'Chưa xác thực' }, { status: 401 });
 
-    const tripId = params.id;
+    const tripId = (await params).id;
     const body = await req.json();
     const seatCode: string = body.seatCode;
     const action: 'hold' | 'release' | 'toggle' = body.action || 'toggle';
