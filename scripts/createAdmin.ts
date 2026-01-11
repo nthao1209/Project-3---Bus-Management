@@ -13,14 +13,14 @@ async function createAdmin() {
   } = process.env;
 
   if (!MONGODB_URI || !ADMIN_EMAIL || !ADMIN_PASSWORD || !ADMIN_PHONE) {
-    console.error('❌ Thiếu biến môi trường (.env)');
+    console.error('Thiếu biến môi trường (.env)');
     process.exit(1);
   }
 
   try {
     // 1. Kết nối DB
     await mongoose.connect(MONGODB_URI);
-    console.log('✅ Connected MongoDB');
+    console.log('Connected MongoDB');
 
     // 2. Kiểm tra admin đã tồn tại chưa
     const existingAdmin = await User.findOne({
@@ -28,7 +28,7 @@ async function createAdmin() {
     });
 
     if (existingAdmin) {
-      console.log('⚠️ Admin đã tồn tại:', existingAdmin.email);
+      console.log('Admin đã tồn tại:', existingAdmin.email);
       process.exit(0);
     }
 
@@ -46,10 +46,10 @@ async function createAdmin() {
       isActive: true,
     });
 
-    console.log('✅ Tạo ADMIN thành công:', ADMIN_EMAIL);
+    console.log('Tạo ADMIN thành công:', ADMIN_EMAIL);
     process.exit(0);
   } catch (error) {
-    console.error('❌ Lỗi tạo admin:', error);
+    console.error('Lỗi tạo admin:', error);
     process.exit(1);
   }
 }
