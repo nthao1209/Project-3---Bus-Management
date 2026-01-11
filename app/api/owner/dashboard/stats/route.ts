@@ -3,7 +3,7 @@ import { dbConnect } from '@/lib/dbConnect';
 import { getCurrentUser } from '@/lib/auth';
 import { Company, Booking, Trip } from '@/models/models';
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     await dbConnect();
     const session = await getCurrentUser();
@@ -12,21 +12,49 @@ export async function GET() {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    // Lấy company của owner
-    const company = await Company.findOne({ ownerId: session.userId });
+    // Lấy companyId từ query params
+    const { searchParams } = new URL(request.url);
+    const companyId = searchParams.get('companyId');
+
+    let company;
+
+    if (companyId) {
+      // Lấy công ty cụ thể nếu có companyId
+      company = await Company.findOne({ 
+        _id: companyId, 
+        ownerId: session.userId 
+      });
+    } else {
+      // Lấy tất cả công ty của user
+      const companies = await Company.find({ ownerId: session.userId });
+      
+      // Nếu có nhiều công ty, trả về để chọn
+      if (companies.length > 1) {
+        return NextResponse.json({
+          success: true,
+          data: {
+            companies,
+            needsSelection: true,
+            message: 'Vui lòng chọn công ty để xem thống kê'
+          }
+        });
+      }
+      
+      // Nếu chỉ có 1 công ty, tự động chọn
+      company = companies[0];
+    }
+
     if (!company) {
       return NextResponse.json({ 
         success: false, 
-        message: 'Chưa tạo nhà xe' 
+        message: 'Không tìm thấy công ty' 
       }, { status: 404 });
     }
 
-    // Tính toán stats
     const now = new Date();
     const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-    // Lấy tất cả trips của company
     const trips = await Trip.find({ 
       companyId: company._id,
       departureTime: { $gte: last30Days }
@@ -34,7 +62,6 @@ export async function GET() {
 
     const tripIds = trips.map(t => t._id);
 
-    // Bookings đã thanh toán (confirmed)
     const confirmedBookings = await Booking.find({
       tripId: { $in: tripIds },
       status: 'confirmed'
@@ -43,7 +70,6 @@ export async function GET() {
       populate: { path: 'routeId', select: 'name' }
     });
 
-    // Tính tổng doanh thu
     const totalRevenue = confirmedBookings.reduce((sum, b) => sum + b.totalPrice, 0);
     const totalTickets = confirmedBookings.length;
 
@@ -86,11 +112,18 @@ export async function GET() {
     return NextResponse.json({
       success: true,
       data: {
+        company: {
+          _id: company._id,
+          name: company.name,
+          hotline: company.hotline,
+          status: company.status
+        },
         totalRevenue,
         totalTickets,
         totalTrips,
         chartData,
-        recentBookings
+        recentBookings,
+        needsSelection: false
       }
     });
 

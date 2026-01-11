@@ -1,13 +1,19 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Card, Row, Col, Statistic, Table, Tag, Spin, message, Alert, Badge } from 'antd';
+import { 
+  Card, Row, Col, Statistic, Table, Tag, Spin, message, Alert, 
+  Badge, Button, Dropdown
+} from 'antd';
+import type { MenuProps } from 'antd';
 import { 
   DollarCircleOutlined, 
   ShoppingOutlined, 
   CarOutlined, 
   ClockCircleOutlined,
-  BellOutlined
+  BellOutlined,
+  DownOutlined,
+  ShopOutlined
 } from '@ant-design/icons';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend 
@@ -19,20 +25,48 @@ export default function OwnerDashboard() {
   const [data, setData] = useState<any>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
   const [newBookingCount, setNewBookingCount] = useState(0);
+  const [selectedCompany, setSelectedCompany] = useState<string>('');
+  const [companies, setCompanies] = useState<any[]>([]);
 
-  const fetchStats = async () => {
+  const fetchStats = async (companyId?: string) => {
     try {
-      const res = await fetch('/api/owner/dashboard/stats');
+      setLoading(true);
+      let url = '/api/owner/dashboard/stats';
+      if (companyId) {
+        url += `?companyId=${companyId}`;
+      }
+      
+      const res = await fetch(url);
       const json = await res.json();
+      
       if (json.success) {
-        setData(json.data);
+        if (json.data.needsSelection) {
+          setCompanies(json.data.companies || []);
+          setData(null);
+        } else {
+          setData(json.data);
+          if (json.data.company) {
+            setSelectedCompany(json.data.company._id);
+          }
+        }
       } else {
-        message.warning('Chưa tải được dữ liệu thống kê');
+        message.warning(json.message || 'Chưa tải được dữ liệu thống kê');
       }
     } catch (error) {
       console.error(error);
+      message.error('Lỗi khi tải dữ liệu');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCompanyChange = (companyId: string) => {
+    setSelectedCompany(companyId);
+    fetchStats(companyId);
+    
+    if (socket && socket.connected) {
+      socket.emit('join_company_dashboard', companyId);
+      console.log('Switched to company room:', companyId);
     }
   };
 
@@ -45,75 +79,47 @@ export default function OwnerDashboard() {
 
     socketInstance.on('connect', () => {
       console.log('Dashboard connected to Socket.IO, ID:', socketInstance.id);
-      
-      fetch('/api/auth/me')
-        .then(res => res.json())
-        .then(data => {
-          console.log('User data:', data);
-          if (data.user?.companyId) {
-            const companyId = data.user.companyId;
-            console.log('Joining company room:', companyId);
-            socketInstance.emit('join_company_dashboard', companyId);
-          } else {
-            console.warn('No companyId found for owner');
-          }
-        })
-        .catch(err => console.error('Error fetching user:', err));
-    });
-
-    socketInstance.on('disconnect', () => {
-      console.log(' Dashboard disconnected from Socket.IO');
-    });
-
-    socketInstance.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
-    });
-
-    socketInstance.on('joined_dashboard', (data: any) => {
-      console.log('Successfully joined dashboard room:', data);
     });
 
     socketInstance.on('new_booking', (eventData: any) => {
-      console.log(' New booking received:', eventData);
+      console.log('New booking received:', eventData);
       
-      message.success({
-        content: `Có đơn hàng mới từ ${eventData.customerName}! (+${eventData.amount.toLocaleString()}đ)`,
-        duration: 5
-      });
-      
-      setNewBookingCount(prev => prev + 1);
-      
-      console.log('Refreshing stats due to new booking...');
-      fetchStats();
+      if (!selectedCompany || eventData.companyId === selectedCompany) {
+        message.success({
+          content: `Có đơn hàng mới từ ${eventData.customerName}! (+${eventData.amount.toLocaleString()}đ)`,
+          duration: 5
+        });
+        
+        setNewBookingCount(prev => prev + 1);
+        fetchStats(selectedCompany);
+      }
     });
 
-    // Listen for booking updates
     socketInstance.on('booking_updated', (eventData: any) => {
       console.log('Booking updated:', eventData);
       
-      if (eventData.type === 'office_booking') {
+      if (eventData.type === 'office_booking' && 
+          (!selectedCompany || eventData.companyId === selectedCompany)) {
         message.info(`Đơn hàng mới tại quầy: ${eventData.customerName}`);
+        fetchStats(selectedCompany);
       }
-      
-      // Refresh stats
-      fetchStats();
     });
 
     setSocket(socketInstance);
 
-    // Auto refresh every 30 seconds
     const intervalId = setInterval(() => {
-      console.log('🔄 Auto-refreshing dashboard stats...');
-      fetchStats();
+      fetchStats(selectedCompany);
     }, 30000);
 
     return () => {
       socketInstance.disconnect();
       clearInterval(intervalId);
     };
-  }, []);
+  }, [selectedCompany]);
 
-  if (loading) return <div className="flex h-screen justify-center items-center"><Spin size="large" /></div>;
+  if (loading && !data) {
+    return <div className="flex h-screen justify-center items-center"><Spin size="large" /></div>;
+  }
 
   const columns = [
     {
@@ -133,10 +139,15 @@ export default function OwnerDashboard() {
       key: 'trip',
       render: (trip: any) => (
         <div>
-           <div className="text-blue-600 font-medium">{trip?.routeId?.name || 'Chuyến đi'}</div>
-           <div className="text-xs text-gray-500">
-             {new Date(trip?.departureTime).toLocaleString('vi-VN', { hour: '2-digit', minute:'2-digit', day:'2-digit', month:'2-digit' })}
-           </div>
+          <div className="text-blue-600 font-medium">{trip?.routeId?.name || 'Chuyến đi'}</div>
+          <div className="text-xs text-gray-500">
+            {new Date(trip?.departureTime).toLocaleString('vi-VN', { 
+              hour: '2-digit', 
+              minute:'2-digit', 
+              day:'2-digit', 
+              month:'2-digit' 
+            })}
+          </div>
         </div>
       )
     },
@@ -167,12 +178,70 @@ export default function OwnerDashboard() {
     }
   ];
 
+  const companyMenuItems: MenuProps['items'] = companies.map(company => ({
+    key: company._id,
+    label: (
+      <div className="flex items-center gap-2">
+        <ShopOutlined />
+        <span>{company.name}</span>
+        <Tag
+          color={company.status === 'active' ? 'green' : 'orange'}
+          className="ml-2"
+        >
+          {company.status === 'active' ? 'Hoạt động' : 'Chờ duyệt'}
+        </Tag>
+      </div>
+    ),
+  }));
+
   return (
     <div className="p-6 bg-slate-50 min-h-screen">
       <div className="mb-6 flex justify-between items-center">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Tổng quan hoạt động</h2>
-          <p className="text-gray-500">Chào mừng trở lại! Đây là tình hình kinh doanh nhà xe của bạn.</p>
+          <div className="flex items-center gap-3 mb-2">
+            <h2 className="text-2xl font-bold text-gray-800">Tổng quan hoạt động</h2>
+            {data?.company ? (
+              <Dropdown
+                menu={{
+                  items: companyMenuItems,
+                  onClick: ({ key }) => handleCompanyChange(key),
+                }}
+                trigger={['click']}
+              >
+                <Button type="text" className="flex items-center gap-1">
+                  <ShopOutlined />
+                  <span className="font-medium">{data.company.name}</span>
+                  <Tag
+                    color={data.company.status === 'active' ? 'green' : 'orange'}
+                    className="ml-2"
+                  >
+                    {data.company.status === 'active' ? 'Hoạt động' : 'Chờ duyệt'}
+                  </Tag>
+                  <DownOutlined className="text-xs" />
+                </Button>
+              </Dropdown>
+            ) : companies.length > 0 ? (
+              <Dropdown
+                menu={{
+                  items: companyMenuItems,
+                  onClick: ({ key }) => handleCompanyChange(key),
+                }}
+                trigger={['click']}
+              >
+                <Button type="primary" className="flex items-center gap-1">
+                  <ShopOutlined />
+                  <span>Chọn công ty</span>
+                  <DownOutlined className="text-xs" />
+                </Button>
+              </Dropdown>
+            ) : null}
+          </div>
+          <p className="text-gray-500">
+            {data?.company 
+              ? `Chào mừng trở lại! Đây là tình hình kinh doanh của ${data.company.name}.`
+              : 'Chào mừng trở lại! Chọn công ty để xem thống kê.'
+            }
+          </p>
         </div>
         {newBookingCount > 0 && (
           <Badge count={newBookingCount} offset={[-5, 5]}>
@@ -187,87 +256,136 @@ export default function OwnerDashboard() {
         )}
       </div>
 
-      {!data && (
-        <Alert
-            message="Chưa có dữ liệu"
-            description="Có vẻ bạn chưa tạo Nhà xe hoặc chưa có chuyến đi nào."
-            type="info"
-            showIcon
-            className="mb-6"
-        />
+      {!data && companies.length === 0 && (
+        <Card className="text-center py-12">
+          <ShopOutlined style={{ fontSize: 48, color: '#999', marginBottom: 16 }} />
+          <h3 className="text-lg font-medium mb-2">Chưa có công ty nào</h3>
+          <p className="text-gray-500 mb-4">Bạn cần tạo công ty trước khi xem thống kê</p>
+          <Button type="primary" href="/owner/companies/create">
+            Tạo công ty mới
+          </Button>
+        </Card>
       )}
 
-      {/* 1. CARDS THỐNG KÊ */}
-      <Row gutter={[16, 16]} className="mb-6">
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} className="shadow-sm">
-            <Statistic
-              title="Doanh thu tạm tính"
-              value={data?.totalRevenue || 0}
-              precision={0}
-              valueStyle={{ color: '#16a34a', fontWeight: 'bold' }}
-              prefix={<DollarCircleOutlined />}
-              suffix="₫"
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} className="shadow-sm">
-            <Statistic
-              title="Vé đã bán"
-              value={data?.totalTickets || 0}
-              valueStyle={{ color: '#2563eb', fontWeight: 'bold' }}
-              prefix={<ShoppingOutlined />}
-              suffix="vé"
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} className="shadow-sm">
-            <Statistic
-              title="Tổng số chuyến"
-              value={data?.totalTrips || 0}
-              valueStyle={{ color: '#d97706', fontWeight: 'bold' }}
-              prefix={<CarOutlined />}
-            />
-          </Card>
-        </Col>
-      </Row>
+      {!data && companies.length > 0 && (
+        <Card className="text-center py-12">
+          <ShopOutlined style={{ fontSize: 48, color: '#999', marginBottom: 16 }} />
+          <h3 className="text-lg font-medium mb-2">Chọn công ty để xem thống kê</h3>
+          <p className="text-gray-500 mb-4">Bạn có {companies.length} công ty. Vui lòng chọn một công ty từ dropdown ở trên.</p>
+          <div className="mt-4">
+            {companies.map(company => (
+              <Card
+                key={company._id}
+                hoverable
+                className="mb-2 cursor-pointer"
+                onClick={() => handleCompanyChange(company._id)}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium">{company.name}</h4>
+                    <p className="text-sm text-gray-500">{company.hotline}</p>
+                  </div>
+                  <Tag color={company.status === 'active' ? 'green' : 'orange'}>
+                    {company.status === 'active' ? 'Hoạt động' : 'Chờ duyệt'}
+                  </Tag>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </Card>
+      )}
 
-      <Row gutter={[16, 16]}>
-        <Col xs={24} lg={14}>
-          <Card title="Doanh thu 7 ngày gần nhất" bordered={false} className="shadow-sm h-full min-h-[400px]">
-            <ResponsiveContainer width="100%" height={320}>
-              <BarChart data={data?.chartData || []}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="date" />
-                <YAxis />
-                <Tooltip formatter={(value: number) => value.toLocaleString() + ' đ'} />
-                <Legend />
-                <Bar name="Doanh thu" dataKey="value" fill="#2474E5" radius={[4, 4, 0, 0]} barSize={40} />
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
-        </Col>
+      {data && !data.needsSelection && (
+        <>
+          <Row gutter={[16, 16]} className="mb-6">
+            <Col xs={24} sm={12} lg={6}>
+              <Card className="shadow-sm">
+                <Statistic
+                  title="Doanh thu tạm tính"
+                  value={data?.totalRevenue || 0}
+                  precision={0}
+                  valueStyle={{ color: '#16a34a', fontWeight: 'bold' }}
+                  prefix={<DollarCircleOutlined />}
+                  suffix="₫"
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Card className="shadow-sm">
+                <Statistic
+                  title="Vé đã bán"
+                  value={data?.totalTickets || 0}
+                  valueStyle={{ color: '#2563eb', fontWeight: 'bold' }}
+                  prefix={<ShoppingOutlined />}
+                  suffix="vé"
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Card className="shadow-sm">
+                <Statistic
+                  title="Tổng số chuyến"
+                  value={data?.totalTrips || 0}
+                  valueStyle={{ color: '#d97706', fontWeight: 'bold' }}
+                  prefix={<CarOutlined />}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Card className="shadow-sm">
+                <div className="text-gray-500 text-sm mb-1">Trạng thái công ty</div>
+                <div className="flex items-center gap-2">
+                  <Tag color={data.company?.status === 'active' ? 'green' : 'orange'} className="text-base">
+                    {data.company?.status === 'active' ? 'Đang hoạt động' : 'Chờ duyệt'}
+                  </Tag>
+                </div>
+                <div className="mt-2 text-xs text-gray-500">
+                  Hotline: {data.company?.hotline}
+                </div>
+              </Card>
+            </Col>
+          </Row>
 
-        <Col xs={24} lg={10}>
-          <Card 
-            title={<div className="flex items-center gap-2"><ClockCircleOutlined /> Đơn hàng mới nhất</div>} 
-            bordered={false} 
-            className="shadow-sm h-full"
-            bodyStyle={{ padding: '0' }}
-          >
-            <Table
-              columns={columns}
-              dataSource={data?.recentBookings || []}
-              rowKey="_id"
-              pagination={false}
-              size="small"
-              className="w-full"
-            />
-          </Card>
-        </Col>
-      </Row>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={14}>
+              <Card 
+                title="Doanh thu 7 ngày gần nhất" 
+                className="shadow-sm h-full min-h-[400px]"
+                extra={<small className="text-gray-500">Công ty: {data.company?.name}</small>}
+              >
+                <ResponsiveContainer width="100%" height={320}>
+                  <BarChart data={data?.chartData || []}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                    <XAxis dataKey="date" />
+                    <YAxis />
+                    <Tooltip formatter={(value: number) => value.toLocaleString() + ' đ'} />
+                    <Legend />
+                    <Bar name="Doanh thu" dataKey="value" fill="#2474E5" radius={[4, 4, 0, 0]} barSize={40} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </Card>
+            </Col>
+
+            <Col xs={24} lg={10}>
+              <Card 
+                title={<div className="flex items-center gap-2"><ClockCircleOutlined /> Đơn hàng mới nhất</div>} 
+                className="shadow-sm h-full"
+                styles={{ body: { padding: '0' } }}
+                extra={<small className="text-gray-500">10 đơn gần nhất</small>}
+              >
+                <Table
+                  columns={columns}
+                  dataSource={data?.recentBookings || []}
+                  rowKey="_id"
+                  pagination={false}
+                  size="small"
+                  className="w-full"
+                />
+              </Card>
+            </Col>
+          </Row>
+        </>
+      )}
     </div>
   );
 }

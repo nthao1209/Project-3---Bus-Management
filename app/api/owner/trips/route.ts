@@ -34,7 +34,6 @@ const calculateTripPoints = (
         name: p.name,
         address: p.address || '',
         time,
-        surcharge: Number(p.defaultSurcharge) || Number(p.surcharge) || 0
       };
     });
   }
@@ -60,7 +59,6 @@ const calculateTripPoints = (
       name: p.name,
       address: p.address || '',
       time,
-      surcharge: Number(p.defaultSurcharge) || Number(p.surcharge) || 0
     };
   }
 

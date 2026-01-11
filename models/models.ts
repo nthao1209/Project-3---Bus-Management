@@ -130,7 +130,6 @@ interface RoutePoint {
   name: string;
   address?: string;
   timeOffset?: number;
-  defaultSurcharge?: number;
 }
 
 export interface Route {
@@ -157,13 +156,11 @@ const RouteSchema = new Schema<Route>({
       name: { type: String, required: true },
       address: String,
       timeOffset: { type: Number, default: 0 },
-      defaultSurcharge: { type: Number, default: 0 }
       }],
   defaultDropoffPoints: [{
     name: { type: String, required: true },
     address: String,
     timeOffset: { type: Number, default: 0 },
-    defaultSurcharge: { type: Number, default: 0 },
 
   }]
 
@@ -175,7 +172,6 @@ interface TripPoint {
   name: string;
   address?: string;
   time: Date;
-  surcharge?: number;
 }
 
 type SeatStatus = 'available' | 'holding' | 'booked' ;
@@ -205,7 +201,6 @@ export interface Trip {
     name: string;
     address?: string;
     time: Date;
-    surcharge?: number;
   }[];
 
   dropoffPoints?: {
@@ -213,7 +208,6 @@ export interface Trip {
     name: string;
     address?: string;
     time: Date;
-    surcharge?: number;
   }[];
 
   status: 'scheduled' | 'running' | 'completed' | 'cancelled';
@@ -266,7 +260,6 @@ const TripSchema = new Schema<Trip>({
     name: String,
     address: String,
     time: Date,
-    surcharge: { type: Number, default: 0 }
   }],
 
   dropoffPoints: [{
@@ -274,7 +267,6 @@ const TripSchema = new Schema<Trip>({
     name: String,
     address: String,
     time: Date,
-    surcharge: { type: Number, default: 0 }
   }],
 
   status: {
@@ -300,8 +292,18 @@ export interface TripTemplate {
   
   basePrice: number;
   active: boolean; // Bật/Tắt lịch này
-  pickupPoints?: TripPoint[];
-  dropoffPoints?: TripPoint[];
+  pickupPoints?: {
+    stationId?: Types.ObjectId;
+    name: string;
+    address?: string;
+    timeOffset?: number;  
+  }[];
+  dropoffPoints?: {
+    stationId?: Types.ObjectId;
+    name: string;
+    address?: string;
+    timeOffset?: number;  
+  }[];
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -323,15 +325,13 @@ const TripTemplateSchema = new Schema<TripTemplate>({
       stationId: { type: Schema.Types.ObjectId, ref: 'Station' },
       name: String,
       address: String,
-      time: Number,
-      surcharge: { type: Number, default: 0 }
+      timeOffset: Number,
     }],
     dropoffPoints: [{
       stationId: { type: Schema.Types.ObjectId, ref: 'Station' },
       name: String,
       address: String,
-      time: Number,
-      surcharge: { type: Number, default: 0 }
+      timeOffset: Number,
     }],
 }, { timestamps: true });
 
@@ -400,7 +400,7 @@ export interface Payment {
   method: 'offline' | 'vnpay';
   status: 'pending' | 'success' | 'failed';
   transactionId?: string;
-  vnpayTransactionNo?: string; // VNPay transaction number từ IPN
+  vnpayTransactionNo?: string; 
   bankCode?: string;
   paymentDate?: Date;
   expiresAt?: Date; // Thời gian hết hạn link thanh toán (15 phút)
@@ -416,10 +416,10 @@ const PaymentSchema = new Schema<Payment>({
   method: { type: String, enum: ['offline', 'vnpay'], default: 'vnpay' },
   status: { type: String, enum: ['pending', 'success', 'failed'], default: 'pending' },
   transactionId: { type: String },
-  vnpayTransactionNo: { type: String }, // VNPay transaction number
+  vnpayTransactionNo: { type: String },
   bankCode: { type: String },
   paymentDate: { type: Date },
-  expiresAt: { type: Date }, // Expiration time
+  expiresAt: { type: Date }, 
   qrContent: { type: String } 
 }, { timestamps: true });
 
@@ -459,23 +459,6 @@ export interface GpsLog {
   timestamp: Date;
 }
 
-const GpsLogSchema = new Schema<GpsLog>({
-  tripId: { type: Schema.Types.ObjectId, ref: 'Trip', required: true },
-  busId: { type: Schema.Types.ObjectId, ref: 'Bus', required: true },
-  driverId: { type: Schema.Types.ObjectId, ref: 'User' },
-  latitude: { type: Number, required: true },
-  longitude: { type: Number, required: true },
-  speed: { type: Number },
-  heading: { type: Number },
-  timestamp: { type: Date, default: Date.now, index: true }
-}, { 
-  timeseries: {
-    timeField: 'timestamp',
-    metaField: 'busId',
-    granularity: 'seconds'
-  },
-  expireAfterSeconds: 604800 
-});
 
 
 export interface Settings {
@@ -502,7 +485,6 @@ export const Trip = mongoose.models.Trip || mongoose.model<Trip>('Trip', TripSch
 export const Booking = mongoose.models.Booking || mongoose.model<Booking>('Booking', BookingSchema);
 export const Payment = mongoose.models.Payment || mongoose.model<Payment>('Payment', PaymentSchema);
 export const Notification = mongoose.models.Notification || mongoose.model<Notification>('Notification', NotificationSchema);
-export const GpsLog = mongoose.models.GpsLog || mongoose.model<GpsLog>('GpsLog', GpsLogSchema);
 export const TripTemplate = mongoose.models.TripTemplate || mongoose.model<TripTemplate>('TripTemplate', TripTemplateSchema);
 export const Settings = mongoose.models.Settings || mongoose.model<Settings>('Settings', SettingsSchema);
 

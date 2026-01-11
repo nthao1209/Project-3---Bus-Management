@@ -42,12 +42,12 @@ const createDateFromTime = (baseDate: Date, timeStr: string) => {
 };
 
 /* =======================
-   Tính pickup / dropoff
+   Tính pickup / dropoff - CORRECT VERSION
 ======================= */
 const calculateTripPoints = (
   baseDate: Date,
   points: any[],
-  direction: 'forward' | 'backward'
+  pointType: 'pickup' | 'dropoff'
 ) => {
   if (!Array.isArray(points)) {
     console.warn('[POINT] points is not array');
@@ -58,65 +58,58 @@ const calculateTripPoints = (
     p => p && p.name && p.name.trim() !== ''
   );
 
-  console.log(`[POINT] ${direction} points count:`, validPoints.length);
+  console.log(`[POINT] ${pointType} points count:`, validPoints.length);
 
-  if (direction === 'forward') {
-    let prevTime: Date | null = null;
+  // Sắp xếp points theo timeOffset
+  const sortedPoints = [...validPoints].sort((a, b) => {
+    const offsetA = Number(a.timeOffset) || 0;
+    const offsetB = Number(b.timeOffset) || 0;
+    
+    if (pointType === 'pickup') {
+      return offsetA - offsetB; // Tăng dần cho pickup
+    } else {
+      return offsetB - offsetA; // Giảm dần cho dropoff (điểm cuối trước)
+    }
+  });
 
-    return validPoints.map((p, idx) => {
+  if (pointType === 'pickup') {
+    // Pickup: tính từ baseDate + offset
+    return sortedPoints.map((p) => {
       const offset = Number(p.timeOffset) || 0;
+      const time = new Date(baseDate.getTime() + offset * 60000);
 
-      const time = p.time
-        ? new Date(p.time)
-        : new Date(
-            (prevTime ? prevTime.getTime() : baseDate.getTime()) +
-              offset * 60000
-          );
-
-      prevTime = new Date(time);
-
-      const result = {
+      return {
         stationId: p.stationId || null,
         name: p.name,
         address: p.address || '',
         time,
         surcharge: Number(p.defaultSurcharge ?? p.surcharge ?? 0),
+        timeOffset: offset,
       };
-
-      console.log(`[POINT][FORWARD][${idx}]`, result);
-      return result;
     });
+  } else {   
+    
+    let cumulativeOffset = 0;
+    const results = [];
+
+    for (const p of sortedPoints) {
+      const offset = Number(p.timeOffset) || 0;
+      const time = new Date(baseDate.getTime() - cumulativeOffset * 60000);
+      
+      results.unshift({ 
+        stationId: p.stationId || null,
+        name: p.name,
+        address: p.address || '',
+        time,
+        surcharge: Number(p.defaultSurcharge ?? p.surcharge ?? 0),
+        timeOffset: offset,
+      });
+
+      cumulativeOffset += offset;
+    }
+
+    return results;
   }
-
-  // backward
-  const pts = [...validPoints];
-  let nextTime: Date | null = null;
-
-  for (let i = pts.length - 1; i >= 0; i--) {
-    const p = pts[i];
-    const offset = Number(p.timeOffset) || 0;
-
-    const time: Date = p.time
-      ? new Date(p.time)
-      : new Date(
-          (nextTime ? nextTime.getTime() : baseDate.getTime()) -
-            offset * 60000
-        );
-
-    nextTime = new Date(time);
-
-    pts[i] = {
-      stationId: p.stationId || null,
-      name: p.name,
-      address: p.address || '',
-      time,
-      surcharge: Number(p.defaultSurcharge ?? p.surcharge ?? 0),
-    };
-
-    console.log(`[POINT][BACKWARD][${i}]`, pts[i]);
-  }
-
-  return pts;
 };
 
 /* =======================
@@ -129,32 +122,32 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => ({}));
     console.log('[BODY]', body);
-
-    const startDate = body.startDate
-      ? new Date(body.startDate)
-      : new Date();
-
-    const endDate = body.endDate
-      ? new Date(body.endDate)
-      : (() => {
-          const d = new Date();
-          d.setDate(d.getDate() + 30);
-          return d;
-        })();
+    const { templateIds, startDate: reqStart, endDate: reqEnd } = body;
+    
+    const startDate = reqStart ? new Date(reqStart) : new Date();
+    const endDate = reqEnd ? new Date(reqEnd) : (() => {
+        const d = new Date(); d.setDate(d.getDate() + 30); return d;
+    })();
 
     startDate.setHours(0, 0, 0, 0);
     endDate.setHours(0, 0, 0, 0);
 
     const daysToGenerate =
       Math.floor((endDate.getTime() - startDate.getTime()) / 86400000) + 1;
-
+    
     console.log('[DATE RANGE]', {
       startDate,
       endDate,
       daysToGenerate,
     });
 
-    const templates = await TripTemplate.find({ active: true })
+    const query: any = { active: true };
+
+    if (Array.isArray(templateIds) && templateIds.length > 0) {
+      query._id = { $in: templateIds };
+    }
+
+    const templates = await TripTemplate.find(query)
       .populate('routeId')
       .lean();
 
@@ -167,10 +160,11 @@ export async function POST(req: Request) {
       });
     }
 
+
     let createdCount = 0;
 
     for (const template of templates) {
-      console.log('--- TEMPLATE ---', template._id);
+      console.log('--- PROCESSING TEMPLATE ---', template._id);
 
       const route = template.routeId as any;
       if (!route) {
@@ -197,14 +191,8 @@ export async function POST(req: Request) {
         );
 
         const arrivalTime = new Date(
-          departureTime.getTime() +
-            template.durationMinutes * 60000
+          departureTime.getTime() + template.durationMinutes * 60000
         );
-
-        console.log('[TIME]', {
-          departureTime,
-          arrivalTime,
-        });
 
         const exists = await Trip.exists({
           busId: template.busId,
@@ -230,16 +218,17 @@ export async function POST(req: Request) {
             ? template.dropoffPoints
             : route.defaultDropoffPoints || [];
 
+       
         const pickupPoints = calculateTripPoints(
-          departureTime,
+          departureTime,  // Base time cho pickup là departureTime
           pickupSource,
-          'forward'
+          'pickup'
         );
 
         const dropoffPoints = calculateTripPoints(
-          arrivalTime,
+          arrivalTime,    // Base time cho dropoff là arrivalTime
           dropoffSource,
-          'backward'
+          'dropoff'
         );
 
         const bus = await Bus.findById(template.busId).lean();
@@ -263,14 +252,13 @@ export async function POST(req: Request) {
           seatsStatus,
           status: 'scheduled',
         });
-
-        console.log('[CREATED TRIP]', createdTrip._id);
+        
         createdCount++;
       }
     }
 
     console.log('========== GENERATE TRIPS END ==========');
-
+    
     return NextResponse.json({
       success: true,
       message: `Đã sinh ${createdCount} chuyến từ ${startDate

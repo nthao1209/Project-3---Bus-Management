@@ -1,13 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, use, useRef } from 'react';
+import  { useState, useEffect, use, useRef } from 'react';
 import { Spin, message, Row, Col } from 'antd';
 import { useRouter } from 'next/navigation';
 import { EnvironmentOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
 import { io, Socket } from 'socket.io-client';
 
-// Import Components
 import TripHeader from '@/components/booking/TripHeader';
 import SeatMap from '@/components/booking/SeatMap';
 import PointSelector from '@/components/booking/PointSelector';
@@ -18,7 +16,6 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
   const { id: tripId } = use(params);
   const router = useRouter();
 
-  // State
   const [loading, setLoading] = useState(true);
   const [trip, setTrip] = useState<any>(null);
   const [step, setStep] = useState(1); 
@@ -28,12 +25,10 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
   const [seatSchema, setSeatSchema] = useState<string[][]>([]); 
   const [seatStatusMap, setSeatStatusMap] = useState<Record<string, any>>({});
   
-  // Socket State
   const socketRef = useRef<Socket | null>(null);
   const [heldSeats, setHeldSeats] = useState<Record<string, string>>({}); 
   const [myHeldSeats, setMyHeldSeats] = useState<Set<string>>(new Set());
 
-  // --- LOGIC SOCKET & DATA (Giữ nguyên logic đã fix của bạn) ---
   
   const handleBookingSuccess = () => {
     selectedSeats.forEach(seat => {
@@ -130,7 +125,6 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
 
           if (data.pickupPoints?.length > 0) setSelectedPickup(data.pickupPoints[0]);
           if (data.dropoffPoints?.length > 0) setSelectedDropoff(data.dropoffPoints[0]);
-          // Xử lý layout ghế
           const busLayout = data.bus?.seatLayout || data.busId?.seatLayout;
           let schema = busLayout?.schema || [];
           if (!Array.isArray(schema) || schema.length === 0) {
@@ -186,7 +180,6 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
   const handleNextStep = () => {
     if (selectedSeats.length === 0) return message.error('Vui lòng chọn ghế');
     
-    // ✅ Kiểm tra chặt chẽ hơn: phải có _id (không chỉ kiểm tra truthy)
     if (!selectedPickup?._id || !selectedDropoff?._id) {
       return message.error('Vui lòng chọn điểm đón/trả');
     }
@@ -241,7 +234,6 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
                 <BookingSummary 
                   selectedSeats={selectedSeats}
                   basePrice={trip.basePrice}
-                  selectedPickup={selectedPickup}
                   onNext={handleNextStep}
                 />
 
@@ -257,7 +249,7 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
           selectedSeats={selectedSeats.map(s => s.id)}
           pickupPoint={selectedPickup}
           dropoffPoint={selectedDropoff}
-          totalPrice={selectedSeats.reduce((sum, s) => sum + s.price, 0) + (selectedPickup?.surcharge || 0) * selectedSeats.length}
+          totalPrice={selectedSeats.reduce((sum, s) => sum + s.price, 0)}
           onSuccess={handleBookingSuccess}
         />
       )}

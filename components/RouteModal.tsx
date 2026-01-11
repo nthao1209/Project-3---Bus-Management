@@ -46,7 +46,6 @@ export default function RouteModal({
         { name: [listName, index, 'name'], value: station.name },             // Tự điền tên điểm
         { name: [listName, index, 'address'], value: station.address || '' },  // Tự điền địa chỉ
         { name: [listName, index, 'timeOffset'], value: 0 },                   // Set 0 phút
-        { name: [listName, index, 'defaultSurcharge'], value: 0 }              // Set 0 phụ thu
       ]);
     } else {
       form.setFieldValue([listName, index, 'address'], '');
@@ -128,16 +127,6 @@ export default function RouteModal({
                 <Col span={3}>
                   <Form.Item name={[name, 'timeOffset']} className="mb-0">
                     <InputNumber className="w-full" placeholder="+Phút" min={0} />
-                  </Form.Item>
-                </Col>
-
-                <Col span={3}>
-                  <Form.Item name={[name, 'defaultSurcharge']} className="mb-0">
-                    <InputNumber
-                      className="w-full"
-                      placeholder="Phụ thu"
-                      formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                    />
                   </Form.Item>
                 </Col>
 

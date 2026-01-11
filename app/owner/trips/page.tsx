@@ -13,7 +13,7 @@ import type { ColumnsType } from 'antd/es/table';
 import DataTable from '@/components/DataTable'; // Giả sử bạn đã có component này
 import TripModal from '@/components/TripModal'; // Component Modal chúng ta vừa sửa
 import dayjs, { Dayjs} from 'dayjs';
-
+import GenerateTripModal from '@/components/GenerateTripModal';
 const { RangePicker } = DatePicker;
 
 interface Trip {
@@ -34,7 +34,8 @@ export default function OwnerTripsPage() {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
-  
+  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+
    const statusOptions = [
     { value: 'scheduled', label: 'Sắp chạy', color: 'blue' },
     { value: 'running', label: 'Đang chạy', color: 'green' },
@@ -356,17 +357,10 @@ export default function OwnerTripsPage() {
   // Tool Bar phụ (Bên phải nút Thêm mới)
   const ExtraTools = (
     <div className="flex items-center gap-3">
-      <RangePicker
-        value={generateRange}
-        onChange={setGenerateRange}
-        format="DD/MM/YYYY"
-        className="w-[260px]"
-        placeholder={['Từ ngày', 'Đến ngày']}
-      />
-
+     
       <Button
         icon={<SyncOutlined />}
-        onClick={handleGenerateTrips}
+        onClick={() => setIsGenerateModalOpen(true)}
         className="text-purple-600 border-purple-600 hover:bg-purple-50"
       >
         Sinh lịch tự động
@@ -400,6 +394,14 @@ export default function OwnerTripsPage() {
           'driverId.phone'
           ]}
         extraButtons={ExtraTools}
+      />
+
+      <GenerateTripModal
+        open={isGenerateModalOpen}
+        onCancel={() => setIsGenerateModalOpen(false)}
+        onSuccess={() => {
+          fetchTrips(); 
+        }}
       />
 
       {/* Modal Quản lý Chuyến đi */}

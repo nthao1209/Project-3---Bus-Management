@@ -1,8 +1,7 @@
-// File: app/api/owner/bookings/by-trip/[tripId]/route.ts
 
 import { NextResponse } from 'next/server';
 import { dbConnect } from '@/lib/dbConnect';
-import { Booking, Trip, Company } from '@/models/models'; // Đảm bảo import đúng model
+import { Booking, Trip, Company } from '@/models/models'; 
 import { getCurrentUser } from '@/lib/auth';
 
 type RouteParams = {
@@ -14,13 +13,11 @@ export async function GET(req: Request, { params }: RouteParams) {
     await dbConnect();
     const { tripId } = await params;
 
-    // 1. Kiểm tra quyền truy cập
     const session = await getCurrentUser();
     if (!session || !['admin', 'owner'].includes(session.role)) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    // 2. Lấy thông tin Chuyến xe để kiểm tra quyền sở hữu & Tổng số ghế
     const trip = await Trip.findById(tripId).lean();
     
     if (!trip) {
@@ -35,11 +32,10 @@ export async function GET(req: Request, { params }: RouteParams) {
     }
 
     const bookings = await Booking.find({ tripId: tripId })
-      .sort({ createdAt: -1 }) // Mới nhất lên đầu
+      .sort({ createdAt: -1 }) 
       .lean();
 
-    // 4. Tính toán tổng số ghế của xe (để hiển thị thống kê 20/40 ghế...)
-    // Giả sử seatsStatus lưu dạng { "A01": {...}, "A02": {...} }
+    
     const totalSeats = trip.seatsStatus ? Object.keys(trip.seatsStatus).length : 40;
 
     return NextResponse.json({

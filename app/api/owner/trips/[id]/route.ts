@@ -26,7 +26,6 @@ const calculateTripPoints = (baseDate: Date, points: any[]) => {
       name: p.name,
       address: p.address || '',
       time: pointTime,
-      surcharge: Number(p.defaultSurcharge) || Number(p.surcharge) || 0
     };
   });
 };
@@ -63,8 +62,7 @@ export async function GET(req: Request, { params }: RouteParams) {
     };
 
     tripObj.pickupPoints = enrichPointsWithOffset(tripObj.pickupPoints, trip.departureTime);
-    tripObj.dropoffPoints = enrichPointsWithOffset(tripObj.dropoffPoints, trip.departureTime); // Dropoff thường tính offset theo departureTime hoặc arrivalTime tùy logic của bạn (ở đây đang tính theo departureTime cho đồng bộ)
-
+    tripObj.dropoffPoints = enrichPointsWithOffset(tripObj.dropoffPoints, trip.departureTime); 
     return NextResponse.json({ success: true, data: tripObj });
   } catch (error: any) {
     return NextResponse.json({ message: 'Lỗi server', error: error.message }, { status: 500 });
@@ -141,7 +139,6 @@ export async function PUT(req: Request, { params }: RouteParams) {
           stationId: p.stationId,
           name: p.name,
           address: p.address,
-          surcharge: p.surcharge,
           time: new Date(new Date(p.time).getTime() + timeDiff) 
         }));
       }
@@ -157,7 +154,6 @@ export async function PUT(req: Request, { params }: RouteParams) {
           stationId: p.stationId,
           name: p.name,
           address: p.address,
-          surcharge: p.surcharge,
           time: new Date(new Date(p.time).getTime() + timeDiff)
         }));
       }

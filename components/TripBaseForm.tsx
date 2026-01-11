@@ -74,16 +74,6 @@ const PointRow = ({
         </Form.Item>
       </Col>
 
-      <Col span={3}>
-        <Form.Item name={[name, 'defaultSurcharge']} className="mb-0">
-          <InputNumber
-            className="w-full"
-            placeholder="Phụ thu"
-            formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-          />
-        </Form.Item>
-      </Col>
-
       <Col span={1} className="pt-1 flex justify-center">
         <MinusCircleOutlined
           onClick={() => remove(name)}
@@ -201,7 +191,6 @@ export default function TripBaseForm({ data }: any) {
             name: p.name,
             address: p.address,
             timeOffset: p.timeOffset,
-            defaultSurcharge: p.defaultSurcharge,
             stationId: p.stationId || null
           }))
         );

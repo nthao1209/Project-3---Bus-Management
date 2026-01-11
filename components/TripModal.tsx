@@ -8,19 +8,17 @@ import TripBaseForm from './TripBaseForm';
 export default function TripModal({
   open,
   loading,
-  initialValues, // Dữ liệu từ API GET (JSON bạn gửi)
+  initialValues, 
   onCancel,
   onSubmit,
   data
 }: any) {
 
-// ... bên trong component TripModal
 const [form] = Form.useForm();
 
 useEffect(() => {
   if (open) {
     if (initialValues) {
-      // 1. Lấy thông tin cơ bản
       const companyId = initialValues.companyId?._id || initialValues.companyId;
       const routeId = initialValues.routeId?._id || initialValues.routeId;
       const busId = initialValues.busId?._id || initialValues.busId;
@@ -52,25 +50,20 @@ useEffect(() => {
               address = routeDefaultPoints[index].address;
           }
 
-          // C. MAP SURCHARGE (DB là 'surcharge', Form là 'defaultSurcharge')
-          const surcharge = p.surcharge !== undefined ? p.surcharge : (p.defaultSurcharge || 0);
 
           return {
             ...p,
             stationId: p.stationId || null,
             name: p.name,
-            address: address || '',      // Điền địa chỉ
-            timeOffset: offset,          // Điền số phút
-            defaultSurcharge: surcharge  // Điền phụ thu
+            address: address || '',      
+            timeOffset: offset,          
           };
         });
       };
 
-      // Lấy điểm mặc định từ Route để fallback địa chỉ
       const routePickupDefaults = initialValues.routeId?.defaultPickupPoints || [];
       const routeDropoffDefaults = initialValues.routeId?.defaultDropoffPoints || [];
 
-      // 3. ĐẨY VÀO FORM
       form.setFieldsValue({
         ...initialValues,
         companyId,
@@ -79,7 +72,6 @@ useEffect(() => {
         driverId,
         departureTime: depTime,
         arrivalTime: arrTime,
-        // Gọi hàm format ở đây
         pickupPoints: formatPoints(initialValues.pickupPoints, routePickupDefaults),
         dropoffPoints: formatPoints(initialValues.dropoffPoints, routeDropoffDefaults),
       });

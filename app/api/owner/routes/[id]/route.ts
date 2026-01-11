@@ -11,7 +11,6 @@ const formatPoints = (points: any[]) => {
     name: p.name,
     address: p.address,
     timeOffset: Number(p.timeOffset) || 0,
-    defaultSurcharge: Number(p.defaultSurcharge) || 0
   }));
 };
 // PUT: Cập nhật tuyến đường

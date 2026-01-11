@@ -3,14 +3,13 @@ import { dbConnect } from '@/lib/dbConnect';
 import { Route, Company } from '@/models/models';
 import { getCurrentUser } from '@/lib/auth';
 
-
 const formatPoints = (points: any[]) => {
   if (!Array.isArray(points)) return [];
   return points.map((p) => ({
+    stationId: p.stationId || null,  // Thêm stationId
     name: p.name,
     address: p.address,
     timeOffset: Number(p.timeOffset) || 0,        
-    defaultSurcharge: Number(p.defaultSurcharge) || 0 
   }));
 };
 
@@ -20,11 +19,9 @@ export async function GET() {
     const session = await getCurrentUser();
     if (!session) return NextResponse.json({ message: 'Chưa xác thực' }, { status: 401 });
 
-    // 1. Tìm Company của Owner này
     const company = await Company.findOne({ ownerId: session.userId });
     if (!company) return NextResponse.json({ success: true, data: [] });
 
-    // 2. Tìm Routes thuộc Company đó
     const routes = await Route.find({ companyId: company._id })
       .populate('startStationId', 'name province')
       .populate('endStationId', 'name province')
@@ -62,6 +59,11 @@ export async function POST(req: Request) {
 
     const finalPickupPoints = formatPoints(defaultPickupPoints);
     const finalDropoffPoints = formatPoints(defaultDropoffPoints);
+
+    console.log('[ROUTE CREATION] Points:', {
+      pickupPoints: finalPickupPoints,
+      dropoffPoints: finalDropoffPoints,
+    });
 
     const newRoute = await Route.create({
       companyId: company._id,

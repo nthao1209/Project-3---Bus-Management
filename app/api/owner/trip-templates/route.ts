@@ -83,25 +83,35 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: 'Tuyến không hợp lệ' }, { status: 400 });
     }
 
-    const finalPickupPoints = (Array.isArray(pickupPoints) && pickupPoints.length > 0)
-      ? pickupPoints.map((p: any) => ({
-          stationId: p.stationId,
+    const processPoints = (points: any[], defaultPoints: any[], pointType: 'pickup' | 'dropoff') => {
+      if (Array.isArray(points) && points.length > 0) {
+        return points.map((p: any, index: number) => ({
+          stationId: p.stationId || null,
           name: p.name,
-          address: p.address,
-          timeOffset: Number(p.timeOffset) || 0,        
-          defaultSurcharge: Number(p.defaultSurcharge) || 0
-        }))
-      : route.defaultPickupPoints; 
+          address: p.address || '',
+          timeOffset: Number(p.timeOffset) || (pointType === 'pickup' ? -index * 10 : index * 10),
+        }));
+      } else if (Array.isArray(defaultPoints) && defaultPoints.length > 0) {
+        return defaultPoints.map((p: any, index: number) => {
+          const pointData = p.toObject ? p.toObject() : p;
+          
+          return {
+            stationId: pointData.stationId || null,
+            name: pointData.name,
+            address: pointData.address || '',
+            timeOffset: pointData.timeOffset !== undefined && pointData.timeOffset !== null 
+              ? Number(pointData.timeOffset) 
+              : (pointType === 'pickup' ? -index * 10 : index * 10),
+          };
+        });
+      }
+      return [];
+    };
 
-    const finalDropoffPoints = (Array.isArray(dropoffPoints) && dropoffPoints.length > 0)
-      ? dropoffPoints.map((p: any) => ({
-          stationId: p.stationId,
-          name: p.name,
-          address: p.address,
-          timeOffset: Number(p.timeOffset) || 0,
-          defaultSurcharge: Number(p.defaultSurcharge) || 0
-        }))
-      : route.defaultDropoffPoints;
+    const finalPickupPoints = processPoints(pickupPoints, route.defaultPickupPoints, 'pickup');
+    const finalDropoffPoints = processPoints(dropoffPoints, route.defaultDropoffPoints, 'dropoff');
+
+  
 
     const template = await TripTemplate.create({
       companyId: company._id,
@@ -117,8 +127,12 @@ export async function POST(req: Request) {
       active: true
     });
 
+    const savedTemplate = await TripTemplate.findById(template._id).lean();
+   
+
     return NextResponse.json({ success: true, data: template });
   } catch (error: any) {
+    console.error('Template creation error:', error);
     return NextResponse.json(
       { message: error.message },
       { status: 500 }

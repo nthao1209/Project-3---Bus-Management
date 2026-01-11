@@ -111,14 +111,12 @@ export async function GET(req: Request) {
           name: p.name,
           address: p.address,
           time: p.time,
-          surcharge: p.surcharge
         })),
         dropoffPoints: (trip.dropoffPoints || []).map((p: any) => ({
           id: p._id,
           name: p.name,
           address: p.address,
           time: p.time,
-          surcharge: p.surcharge
         }))
       };
     });

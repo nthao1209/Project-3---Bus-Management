@@ -46,14 +46,12 @@ export default function TripTemplateModal({
             offset = routeDefaults[index].timeOffset;
           }
 
-          const surcharge = p.defaultSurcharge ?? p.surcharge ?? 0;
 
           return {
             name: p.name,
             stationId: p.stationId || null,
             address: address || '',       // Đã khôi phục
             timeOffset: offset || 0,      // Đã khôi phục
-            defaultSurcharge: surcharge   // Đã map
           };
         });
       };

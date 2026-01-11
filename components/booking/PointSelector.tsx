@@ -7,7 +7,6 @@ interface Point {
   name: string;
   address: string;
   time: string; 
-  surcharge?: number;
 }
 
 interface PointSelectorProps {
@@ -43,9 +42,6 @@ export default function PointSelector({
                   <span className={`font-bold mr-2 ${timeClass}`}>{formatTime(p.time)}</span>
                   {p.name}
                 </span>
-                {p.surcharge && p.surcharge > 0 ? (
-                    <Tag color="orange">+{p.surcharge.toLocaleString()}</Tag>
-                ) : null}
               </div>
               <div className="text-xs text-gray-400 ml-6 truncate" title={p.address}>{p.address}</div>
             </Radio>
