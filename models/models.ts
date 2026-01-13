@@ -448,19 +448,6 @@ const NotificationSchema = new Schema<Notification>({
   isRead: { type: Boolean, default: false }
 }, { timestamps: true });
 
-export interface GpsLog {
-  tripId: Types.ObjectId;
-  busId: Types.ObjectId;
-  driverId?: Types.ObjectId;
-  latitude: number;
-  longitude: number;
-  speed?: number;
-  heading?: number;
-  timestamp: Date;
-}
-
-
-
 export interface Settings {
   key: string;
   value: any;
