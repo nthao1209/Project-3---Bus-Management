@@ -22,7 +22,6 @@ export default function ProfilePage() {
   const [submitting, setSubmitting] = useState(false);
   const [user, setUser] = useState<any>(null);
 
-  // Form instances để thao tác reset/validate
   const [infoForm] = Form.useForm();
   const [passwordForm] = Form.useForm();
 
@@ -60,63 +59,78 @@ export default function ProfilePage() {
   };
 
   // 2. Xử lý Cập nhật thông tin chung
-  const handleUpdateInfo = async (values: any) => {
-    setSubmitting(true);
-    try {
-      const res = await fetch('/api/users/user', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: values.name,
-          email: values.email,
-          phone: values.phone,
-        }),
-      });
+ const handleUpdateInfo = async (values: any) => {
+  setSubmitting(true);
+  try {
+    const res = await fetch('/api/users/user', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: values.name,
+        email: values.email,
+        phone: values.phone,
+      }),
+    });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message);
 
-      message.success('Cập nhật thông tin thành công!');
-      
-      const oldStorage = JSON.parse(localStorage.getItem('user_info') || '{}');
-      localStorage.setItem('user_info', JSON.stringify({ ...oldStorage, ...data.user }));
+    const emailChanged = values.email !== user.email;
 
-      window.location.reload();
+    if (emailChanged) {
+      message.success('Cập nhật email thành công. Vui lòng đăng nhập lại');
 
-    } catch (error: any) {
-      message.error(error.message);
-    } finally {
-      setSubmitting(false);
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.dispatchEvent(new Event('authChanged'));
+      localStorage.removeItem('user_info');
+
+      router.push('/auth/login');
+      return;
     }
-  };
+
+    setUser((prev: any) => ({ ...prev, ...data.user }));
+    infoForm.setFieldsValue(data.user);
+
+    message.success('Cập nhật thông tin thành công!');
+  } catch (error: any) {
+    message.error(error.message);
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   // 3. Xử lý Đổi mật khẩu
-  const handleChangePassword = async (values: any) => {
-    setSubmitting(true);
-    try {
-      const res = await fetch('/api/users/user', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          password: values.oldPassword,
-          newPassword: values.newPassword
-        }),
-      });
+ const handleChangePassword = async (values: any) => {
+  setSubmitting(true);
+  try {
+    const res = await fetch('/api/users/user', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        password: values.oldPassword,
+        newPassword: values.newPassword
+      }),
+    });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message);
 
-      message.success('Đổi mật khẩu thành công! Vui lòng đăng nhập lại.');
-      passwordForm.resetFields();
-      
-      router.push('/auth/login');
-      
-    } catch (error: any) {
-      message.error(error.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
+    message.success('Đổi mật khẩu thành công. Vui lòng đăng nhập lại');
+
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.dispatchEvent(new Event('authChanged'));
+    localStorage.removeItem('user_info');
+
+    passwordForm.resetFields();
+    router.push('/auth/login');
+
+  } catch (error: any) {
+    message.error(error.message);
+  } finally {
+    setSubmitting(false);
+  }
+};
+
 
   // 4. Xử lý Xóa tài khoản
   const handleDeleteAccount = () => {
@@ -134,7 +148,7 @@ export default function ProfilePage() {
 
           message.success('Tài khoản đã bị xóa.');
           localStorage.removeItem('user_info');
-          router.push('/login');
+          router.push('/auth/login');
         } catch (error: any) {
           message.error(error.message);
         }

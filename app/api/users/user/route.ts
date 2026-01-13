@@ -90,6 +90,13 @@ export async function DELETE() {
     if (!currentUser) {
       return NextResponse.json({ message: 'Chưa đăng nhập' }, { status: 401 });
     }
+    if (currentUser.role === 'admin') {
+        return NextResponse.json(
+          { message: 'Admin không thể tự vô hiệu hóa tài khoản' },
+          { status: 403 }
+        );
+      }
+
 
     await User.findByIdAndUpdate(currentUser.userId, { isActive: false });
 

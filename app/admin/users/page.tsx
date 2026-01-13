@@ -43,7 +43,7 @@ export default function UserManagementPage() {
 
   const handleDelete = async (id: string) => {
     try {
-      const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/admin/users/${id}/status`, { method: 'DELETE' });
       const json = await res.json();
       if (json.success) {
         message.success('Xóa user thành công');

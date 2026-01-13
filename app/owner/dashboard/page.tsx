@@ -2,23 +2,20 @@
 
 import React, { useEffect, useState } from 'react';
 import { 
-  Card, Row, Col, Statistic, Table, Tag, Spin, message, Alert, 
-  Badge, Button, Dropdown
+  Card, Row, Col, Statistic, Table, Tag, Spin, message, 
+  Badge, Button, Dropdown, DatePicker, Radio 
 } from 'antd';
 import type { MenuProps } from 'antd';
 import { 
-  DollarCircleOutlined, 
-  ShoppingOutlined, 
-  CarOutlined, 
-  ClockCircleOutlined,
-  BellOutlined,
-  DownOutlined,
-  ShopOutlined
+  DollarCircleOutlined, ShoppingOutlined, CarOutlined, 
+  ClockCircleOutlined, BellOutlined, DownOutlined, ShopOutlined,
+  SyncOutlined // Đã thêm icon này
 } from '@ant-design/icons';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend 
 } from 'recharts';
 import { io, Socket } from 'socket.io-client';
+import dayjs from 'dayjs';
 
 export default function OwnerDashboard() {
   const [loading, setLoading] = useState(true);
@@ -27,16 +24,25 @@ export default function OwnerDashboard() {
   const [newBookingCount, setNewBookingCount] = useState(0);
   const [selectedCompany, setSelectedCompany] = useState<string>('');
   const [companies, setCompanies] = useState<any[]>([]);
+  
+  // State cho bộ lọc
+  const [filterType, setFilterType] = useState<'day' | 'month' | 'year'>('month');
+  const [filterDate, setFilterDate] = useState<dayjs.Dayjs>(dayjs());
 
   const fetchStats = async (companyId?: string) => {
     try {
       setLoading(true);
       let url = '/api/owner/dashboard/stats';
-      if (companyId) {
-        url += `?companyId=${companyId}`;
-      }
-      
-      const res = await fetch(url);
+      const params = new URLSearchParams();
+
+      if (companyId) params.append('companyId', companyId);
+      else if (selectedCompany) params.append('companyId', selectedCompany);
+
+      // Thêm tham số lọc
+      params.append('type', filterType);
+      params.append('date', filterDate.format('YYYY-MM-DD'));
+
+      const res = await fetch(`${url}?${params.toString()}`);
       const json = await res.json();
       
       if (json.success) {
@@ -62,23 +68,30 @@ export default function OwnerDashboard() {
 
   const handleCompanyChange = (companyId: string) => {
     setSelectedCompany(companyId);
-    fetchStats(companyId);
-    
+    // Khi đổi công ty, gọi fetch ngay lập tức với ID mới
+    // (useEffect sẽ lo phần filterDate/Type)
     if (socket && socket.connected) {
       socket.emit('join_company_dashboard', companyId);
       console.log('Switched to company room:', companyId);
     }
   };
 
+  // Gọi API khi thay đổi bộ lọc hoặc công ty
   useEffect(() => {
     fetchStats();
+  }, [filterType, filterDate, selectedCompany]);
 
+  // Setup Socket & Auto Refresh
+  useEffect(() => {
     const socketInstance = io({
       path: '/socket.io',
     });
 
     socketInstance.on('connect', () => {
       console.log('Dashboard connected to Socket.IO, ID:', socketInstance.id);
+      if (selectedCompany) {
+         socketInstance.emit('join_company_dashboard', selectedCompany);
+      }
     });
 
     socketInstance.on('new_booking', (eventData: any) => {
@@ -96,8 +109,6 @@ export default function OwnerDashboard() {
     });
 
     socketInstance.on('booking_updated', (eventData: any) => {
-      console.log('Booking updated:', eventData);
-      
       if (eventData.type === 'office_booking' && 
           (!selectedCompany || eventData.companyId === selectedCompany)) {
         message.info(`Đơn hàng mới tại quầy: ${eventData.customerName}`);
@@ -115,9 +126,9 @@ export default function OwnerDashboard() {
       socketInstance.disconnect();
       clearInterval(intervalId);
     };
-  }, [selectedCompany]);
+  }, []); // Run once on mount (socket init)
 
-  if (loading && !data) {
+  if (loading && !data && companies.length === 0) {
     return <div className="flex h-screen justify-center items-center"><Spin size="large" /></div>;
   }
 
@@ -194,9 +205,16 @@ export default function OwnerDashboard() {
     ),
   }));
 
+  const getChartTitle = () => {
+    if (filterType === 'day') return `Doanh thu ngày ${filterDate.format('DD/MM/YYYY')}`;
+    if (filterType === 'month') return `Doanh thu tháng ${filterDate.format('MM/YYYY')}`;
+    return `Doanh thu năm ${filterDate.format('YYYY')}`;
+  };
+
   return (
     <div className="p-6 bg-slate-50 min-h-screen">
-      <div className="mb-6 flex justify-between items-center">
+      <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        {/* Phần Tiêu đề & Chọn công ty */}
         <div>
           <div className="flex items-center gap-3 mb-2">
             <h2 className="text-2xl font-bold text-gray-800">Tổng quan hoạt động</h2>
@@ -243,20 +261,49 @@ export default function OwnerDashboard() {
             }
           </p>
         </div>
-        {newBookingCount > 0 && (
-          <Badge count={newBookingCount} offset={[-5, 5]}>
-            <BellOutlined 
-              style={{ fontSize: 28, color: '#1890ff' }} 
-              onClick={() => {
-                setNewBookingCount(0);
-                message.info('Đã xem tất cả thông báo mới');
-              }}
-            />
-          </Badge>
-        )}
+
+        {/* Phần Bộ lọc & Thông báo */}
+        <div className="flex items-center gap-4">
+           {/* Bộ lọc thời gian */}
+           <div className="flex items-center gap-2 bg-white p-2 rounded-lg shadow-sm">
+             <Radio.Group 
+               value={filterType} 
+               onChange={(e) => setFilterType(e.target.value)} 
+               buttonStyle="solid"
+             >
+               <Radio.Button value="day">Ngày</Radio.Button>
+               <Radio.Button value="month">Tháng</Radio.Button>
+               <Radio.Button value="year">Năm</Radio.Button>
+             </Radio.Group>
+             
+             <DatePicker 
+               value={filterDate} 
+               onChange={(date) => date && setFilterDate(date)} 
+               picker={filterType === 'day' ? 'date' : filterType} 
+               allowClear={false}
+               format={filterType === 'day' ? 'DD/MM/YYYY' : (filterType === 'month' ? 'MM/YYYY' : 'YYYY')}
+               className="w-36"
+             />
+             <Button icon={<SyncOutlined />} onClick={() => fetchStats()} />
+           </div>
+
+           {/* Chuông thông báo */}
+           {newBookingCount > 0 && (
+              <Badge count={newBookingCount} offset={[-5, 5]}>
+                <BellOutlined 
+                  style={{ fontSize: 24, color: '#1890ff', cursor: 'pointer' }} 
+                  onClick={() => {
+                    setNewBookingCount(0);
+                    message.info('Đã xem tất cả thông báo mới');
+                  }}
+                />
+              </Badge>
+           )}
+        </div>
       </div>
 
-      {!data && companies.length === 0 && (
+      {/* Case 1: Chưa có công ty nào */}
+      {!data && companies.length === 0 && !loading && (
         <Card className="text-center py-12">
           <ShopOutlined style={{ fontSize: 48, color: '#999', marginBottom: 16 }} />
           <h3 className="text-lg font-medium mb-2">Chưa có công ty nào</h3>
@@ -267,41 +314,41 @@ export default function OwnerDashboard() {
         </Card>
       )}
 
+      {/* Case 2: Có công ty nhưng chưa chọn (hoặc đang load list) */}
       {!data && companies.length > 0 && (
         <Card className="text-center py-12">
           <ShopOutlined style={{ fontSize: 48, color: '#999', marginBottom: 16 }} />
           <h3 className="text-lg font-medium mb-2">Chọn công ty để xem thống kê</h3>
           <p className="text-gray-500 mb-4">Bạn có {companies.length} công ty. Vui lòng chọn một công ty từ dropdown ở trên.</p>
-          <div className="mt-4">
+          <div className="mt-4 flex flex-wrap justify-center gap-4">
             {companies.map(company => (
               <Card
                 key={company._id}
                 hoverable
-                className="mb-2 cursor-pointer"
+                className="w-64 cursor-pointer text-left"
                 onClick={() => handleCompanyChange(company._id)}
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">{company.name}</h4>
-                    <p className="text-sm text-gray-500">{company.hotline}</p>
-                  </div>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-medium truncate">{company.name}</h4>
                   <Tag color={company.status === 'active' ? 'green' : 'orange'}>
-                    {company.status === 'active' ? 'Hoạt động' : 'Chờ duyệt'}
+                    {company.status === 'active' ? 'Active' : 'Pending'}
                   </Tag>
                 </div>
+                <p className="text-sm text-gray-500">{company.hotline}</p>
               </Card>
             ))}
           </div>
         </Card>
       )}
 
+      {/* Case 3: Đã có dữ liệu (Hiển thị Dashboard) */}
       {data && !data.needsSelection && (
         <>
           <Row gutter={[16, 16]} className="mb-6">
             <Col xs={24} sm={12} lg={6}>
               <Card className="shadow-sm">
                 <Statistic
-                  title="Doanh thu tạm tính"
+                  title={filterType === 'day' ? "Doanh thu ngày" : (filterType === 'month' ? "Doanh thu tháng" : "Doanh thu năm")}
                   value={data?.totalRevenue || 0}
                   precision={0}
                   valueStyle={{ color: '#16a34a', fontWeight: 'bold' }}
@@ -349,7 +396,7 @@ export default function OwnerDashboard() {
           <Row gutter={[16, 16]}>
             <Col xs={24} lg={14}>
               <Card 
-                title="Doanh thu 7 ngày gần nhất" 
+                title={getChartTitle()} 
                 className="shadow-sm h-full min-h-[400px]"
                 extra={<small className="text-gray-500">Công ty: {data.company?.name}</small>}
               >

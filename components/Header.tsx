@@ -46,23 +46,19 @@
     user: {
       showMyTickets: true,
       showProfile: true,
-      showOwnerRegister: true,
       dashboard: null,
     },
     owner: {
       showMyTickets: false,
       showProfile: true,
-      showOwnerRegister: false,
     },
     driver: {
       showMyTickets: false,
-      showProfile: false,
-      showOwnerRegister: false,
+      showProfile: true,
     },
     admin: {
       showMyTickets: false,
-      showProfile: false,
-      showOwnerRegister: false,
+      showProfile: true,
     },
   };
 
