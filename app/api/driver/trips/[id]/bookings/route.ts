@@ -10,17 +10,28 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const session = await getCurrentUser();
     if (!session || session.role !== 'driver') return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
 
-    // Verify trip belongs to driver
     const isMyTrip = await Trip.exists({ _id: id, driverId: session.userId });
     if (!isMyTrip) return NextResponse.json({ message: 'Forbidden' }, { status: 403 });
 
-    const bookings = await Booking.find({ 
-      tripId: id,
-      status: { $in: ['pending_payment', 'confirmed', 'boarded'] }
-    })
-    .select('seatCodes customerInfo totalPrice status pickupPoint dropoffPoint note paymentExpireAt')
-    .sort({ 'seatCodes.0': 1 }) // Sắp xếp theo số ghế
-    .lean();
+    const trip = await Trip.findOne({
+        _id: id,
+        driverId: session.userId
+      }).select('status');
+
+      if (!trip) return NextResponse.json({ message: 'Trip not found' }, { status: 404 });
+
+      const bookingStatus =
+        trip.status === 'completed'
+          ? { $in: ['confirmed', 'boarded'] }
+          : { $in: ['pending_payment', 'confirmed', 'boarded'] };
+
+      const bookings = await Booking.find({
+        tripId: id,
+        status: bookingStatus
+      })
+      .select('seatCodes customerInfo totalPrice status pickupPoint dropoffPoint note paymentExpireAt')
+      .sort({ 'seatCodes.0': 1 })
+      .lean();
 
     return NextResponse.json({ success: true, data: bookings });
   } catch (error: any) {

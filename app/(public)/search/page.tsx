@@ -109,50 +109,85 @@ function SearchContent() {
 
 
   const filteredTrips = useMemo(() => {
-    let result = [...trips];
+      let result = [...trips];
 
-    if (filters.selectedOperators.length > 0) {
-        result = result.filter(t => filters.selectedOperators.includes(t.companyName));
-    }
+      // ✅ 1. Lọc theo thời gian hiện tại + 30 phút nếu là hôm nay
+      const isToday = date === new Date().toISOString().split('T')[0];
 
-    result = result.filter(t => t.basePrice >= filters.priceRange[0] && t.basePrice <= filters.priceRange[1]);
+      if (isToday) {
+        const now = new Date();
+        const minAllowTime = new Date(now.getTime() + 30 * 60 * 1000);
 
-    if (filters.timeRanges.length > 0) {
         result = result.filter(t => {
-            let hour = 0;
-            const timeStr = t.departureTime;
+          let tripTime: Date | null = null;
 
-            if (timeStr.includes('T') || timeStr.includes('-')) {
-                const dateObj = new Date(timeStr);
-                if (!isNaN(dateObj.getTime())) {
-                    hour = dateObj.getHours(); 
-                } else {
-                    hour = parseInt(timeStr.split(':')[0], 10);
-                }
-            } 
-            else {
-                hour = parseInt(timeStr.split(':')[0], 10);
-            }
-            return filters.timeRanges.some(range => {
-                const [start, end] = range.split('-').map(Number);
-                return hour >= start && hour < end;
-            });
+          // Trường hợp ISO datetime
+          if (t.departureTime.includes('T')) {
+            tripTime = new Date(t.departureTime);
+          } 
+          // Trường hợp HH:mm
+          else {
+            const [h, m] = t.departureTime.split(':').map(Number);
+            const d = new Date();
+            d.setHours(h, m, 0, 0);
+            tripTime = d;
+          }
+
+          return tripTime && tripTime >= minAllowTime;
         });
-    }
+      }
 
-    switch (filters.sortBy) {
-        case 'price_asc': result.sort((a, b) => a.basePrice - b.basePrice); break;
-        case 'price_desc': result.sort((a, b) => b.basePrice - a.basePrice); break;
-        case 'early': result.sort((a, b) => a.departureTime.localeCompare(b.departureTime)); break;
-        case 'late': result.sort((a, b) => b.departureTime.localeCompare(a.departureTime)); break;
-        default: break; 
-    }
+      // ✅ 2. Lọc theo hãng xe
+      if (filters.selectedOperators.length > 0) {
+        result = result.filter(t =>
+          filters.selectedOperators.includes(t.companyName)
+        );
+      }
 
-    return result;
-  }, [trips, filters]);
+      // ✅ 3. Lọc theo giá
+      result = result.filter(
+        t => t.basePrice >= filters.priceRange[0] &&
+            t.basePrice <= filters.priceRange[1]
+      );
+
+      // ✅ 4. Lọc theo khung giờ
+      if (filters.timeRanges.length > 0) {
+        result = result.filter(t => {
+          const hour = new Date(t.departureTime).getHours();
+          return filters.timeRanges.some(range => {
+            const [start, end] = range.split('-').map(Number);
+            return hour >= start && hour < end;
+          });
+        });
+      }
+
+      // ✅ 5. Sort
+      switch (filters.sortBy) {
+        case 'price_asc':
+          result.sort((a, b) => a.basePrice - b.basePrice);
+          break;
+        case 'price_desc':
+          result.sort((a, b) => b.basePrice - a.basePrice);
+          break;
+        case 'early':
+          result.sort((a, b) => a.departureTime.localeCompare(b.departureTime));
+          break;
+        case 'late':
+          result.sort((a, b) => b.departureTime.localeCompare(a.departureTime));
+          break;
+        default:
+          break;
+      }
+
+      return result;
+    }, [trips, filters, date]);
+
   return (
     <div className="container mx-auto px-4 pb-10">
-      
+      <p className="text-gray-500 mt-2">
+        Chỉ hiển thị các chuyến khởi hành sau {new Date(Date.now() + 30*60000).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+      </p>
+
       <div className="lg:hidden flex justify-between items-center py-4 border-b border-gray-200 mb-4 sticky top-[154px] z-30 bg-[#F2F2F2]">
           <div>
              <span className="text-gray-600 text-sm">Tìm thấy </span>

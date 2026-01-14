@@ -1,17 +1,18 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Tabs, Card, Tag, Button, Spin, Empty, Modal, Descriptions, message, Popconfirm 
 } from 'antd';
 import { 
   ClockCircleOutlined, CarOutlined, EnvironmentOutlined, 
-  BarcodeOutlined, QrcodeOutlined, DeleteOutlined, CreditCardOutlined 
+  BarcodeOutlined, QrcodeOutlined, CreditCardOutlined, StarOutlined 
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { useRouter } from 'next/navigation';
+import ReviewModal from '@/components/ReviewModal';
+import { io, Socket } from 'socket.io-client';
 
-// --- Interfaces ---
 interface Ticket {
   _id: string;
   status: 'pending_payment' | 'confirmed' | 'cancelled' | 'boarded';
@@ -22,8 +23,14 @@ interface Ticket {
   tripId: {
     _id: string;
     departureTime: string;
+    status: 'scheduled' | 'running' | 'completed' | 'cancelled';
     routeId: { name: string };
     busId: { plateNumber: string; type: string };
+  };
+  isReviewed: boolean;
+  reviewDetail?: {
+      rating: number;
+      comment: string;
   };
   pickupPoint?: { name: string; address: string; time: string };
   dropoffPoint?: { name: string; address: string };
@@ -36,20 +43,22 @@ export default function MyTicketsPage() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [filteredTickets, setFilteredTickets] = useState<Ticket[]>([]);
   const [activeTab, setActiveTab] = useState('all');
-  
+  const [reviewData, setReviewData] = useState<any>(null);
+
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
+  const [openReview, setOpenReview] = useState(false);
+  const [reviewTripId, setReviewTripId] = useState<string| null>(null);
 
   // 1. Fetch dữ liệu
   const fetchTickets = async () => {
-    setLoading(true);
+    if (tickets.length === 0) setLoading(true);
     try {
       const res = await fetch('/api/users/my-tickets');
       const json = await res.json();
       if (json.success) {
         setTickets(json.data);
-        setFilteredTickets(json.data);
       }
     } catch (error) {
       message.error('Lỗi tải danh sách vé');
@@ -62,17 +71,79 @@ export default function MyTicketsPage() {
     fetchTickets();
   }, []);
 
-  // 2. Xử lý Tab Filter
-  const handleTabChange = (key: string) => {
-    setActiveTab(key);
-    if (key === 'all') {
+  // --- LOGIC SOCKET REALTIME (ĐÃ SỬA) ---
+  useEffect(() => {
+    // Chỉ kết nối khi đã có danh sách vé để biết cần join vào chuyến nào
+    if (tickets.length === 0) return;
+
+    // Khởi tạo socket
+    const socketInstance = io({ path: '/socket.io' });
+
+    socketInstance.on('connect', () => {
+      console.log('User connected to socket for tracking tickets');
+      
+      // Lấy danh sách các Trip ID từ vé của user
+      // (Để user join vào các chuyến xe mình có vé, từ đó nghe được sự kiện từ tài xế)
+      const uniqueTripIds = Array.from(new Set(tickets.map(t => t.tripId._id)));
+      
+      uniqueTripIds.forEach(tripId => {
+        // Gửi sự kiện join_trip với ID trần (không prefix) khớp với server
+        socketInstance.emit('join_trip', tripId);
+      });
+    });
+
+    // 1. Lắng nghe cập nhật trạng thái Vé (Khi Tài xế bấm Thu tiền / Đã đón)
+    socketInstance.on('booking_updated', (data: any) => {
+      console.log('⚡ Booking updated:', data);
+      
+      setTickets(prevTickets => prevTickets.map(ticket => {
+        // Chỉ cập nhật đúng vé có ID tương ứng
+        if (ticket._id === data.bookingId) {
+          if (data.status === 'confirmed') message.success('Vé đã được xác nhận thanh toán!');
+          if (data.status === 'boarded') message.success('Đã xác nhận lên xe!');
+          
+          return { ...ticket, status: data.status };
+        }
+        return ticket;
+      }));
+    });
+
+    // 2. Lắng nghe cập nhật trạng thái Chuyến đi (Khi Tài xế bấm Hoàn thành)
+    socketInstance.on('trip_status_updated', (data: any) => {
+      console.log('Trip updated:', data);
+
+      setTickets(prevTickets => prevTickets.map(ticket => {
+        if (ticket.tripId._id === data.tripId) {
+          // Cập nhật trạng thái chuyến đi lồng bên trong vé
+          return { 
+            ...ticket, 
+            tripId: { ...ticket.tripId, status: data.status } 
+          };
+        }
+        return ticket;
+      }));
+    });
+
+    // Cleanup khi unmount
+    return () => {
+      socketInstance.disconnect();
+    };
+  }, [tickets.length]); // Chạy lại khi số lượng vé thay đổi (để join room mới nếu mua thêm vé)
+
+
+  // 2. Xử lý Tab Filter (Cập nhật lại filter mỗi khi tickets thay đổi do Socket)
+  useEffect(() => {
+    if (activeTab === 'all') {
       setFilteredTickets(tickets);
     } else {
-      setFilteredTickets(tickets.filter(t => t.status === key));
+      setFilteredTickets(tickets.filter(t => t.status === activeTab));
     }
+  }, [tickets, activeTab]);
+
+  const handleTabChange = (key: string) => {
+    setActiveTab(key);
   };
 
-  // 3. Helper: Màu sắc trạng thái
   const getStatusTag = (status: string) => {
     switch (status) {
       case 'confirmed': return <Tag color="green">Đã xác nhận</Tag>;
@@ -83,7 +154,7 @@ export default function MyTicketsPage() {
     }
   };
 
-  // 4. Xử lý Thanh toán lại (Gọi lại API tạo link VNPAY)
+  // 4. Xử lý Thanh toán lại
   const handleRepay = async (ticket: Ticket) => {
     try {
       message.loading({ content: 'Đang tạo cổng thanh toán...', key: 'repay' });
@@ -106,6 +177,7 @@ export default function MyTicketsPage() {
       message.error({ content: 'Lỗi kết nối', key: 'repay' });
     }
   };
+
   const handleCancel = async (bookingId: string) => {
     try {
       message.loading({ content: 'Đang hủy vé...', key: 'cancel' });
@@ -118,6 +190,7 @@ export default function MyTicketsPage() {
       
       if (data.success) {
         message.success({ content: 'Đã hủy vé', key: 'cancel' });
+        // Gọi lại fetchTickets để đồng bộ
         fetchTickets(); 
       } else {
         message.error({ content: data.message || 'Lỗi hủy vé', key: 'cancel' });
@@ -161,14 +234,26 @@ export default function MyTicketsPage() {
               >
                 <div className="flex flex-col md:flex-row justify-between gap-4">
                   
-                  {/* Cột Trái: Thông tin chính */}
+                  {/* Cột Trái */}
                   <div className="flex-1">
-                    <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-bold text-lg text-blue-900 m-0">
+                        <div className="flex justify-between items-start mb-2">
+                          <h3 className="font-bold text-lg text-blue-900 m-0">
                             {ticket.tripId.routeId.name}
-                        </h3>
-                        <div className="md:hidden">{getStatusTag(ticket.status)}</div>
-                    </div>
+                          </h3>
+
+                          {/* Trạng thái vé – CHỈ hiện khi chưa completed */}
+                          {ticket.tripId.status !== 'completed' && (
+                            <div className="md:hidden">
+                              {getStatusTag(ticket.status)}
+                            </div>
+                          )}
+
+                          {/* Trạng thái chuyến */}
+                          {ticket.tripId.status === 'completed' && (
+                            <Tag color="cyan">Đã hoàn thành chuyến đi</Tag>
+                          )}
+                        </div>
+
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-8 text-gray-600 text-sm mt-3">
                         <div className="flex items-center gap-2">
@@ -194,7 +279,7 @@ export default function MyTicketsPage() {
                     </div>
                   </div>
 
-                  {/* Cột Phải: Giá & Hành động */}
+                  {/* Cột Phải */}
                   <div className="flex flex-col justify-between items-end min-w-[150px] border-t md:border-t-0 md:border-l pt-4 md:pt-0 md:pl-6 border-gray-100">
                     <div className="hidden md:block mb-2">
                          {getStatusTag(ticket.status)}
@@ -210,8 +295,8 @@ export default function MyTicketsPage() {
                         </div>
                     </div>
 
-                    <div className="flex gap-2 w-full justify-end">
-                        {/* Nút Thanh toán (Chỉ hiện khi pending) */}
+                    <div className="flex gap-2 w-full justify-end flex-wrap">
+                        {/* Nút Thanh toán */}
                         {ticket.status === 'pending_payment' && (
                              <Button 
                                 type="primary" 
@@ -223,10 +308,11 @@ export default function MyTicketsPage() {
                                 Thanh toán
                              </Button>
                         )}
+                        
+                        {/* Nút Hủy */}
                          {(ticket.status === 'pending_payment' || ticket.status === 'confirmed') && (
                           <Popconfirm
                               title="Hủy vé này?"
-                              description="Hành động này không thể hoàn tác. Bạn có chắc chắn muốn hủy vé?"
                               onConfirm={() => handleCancel(ticket._id)}
                               okText="Đồng ý hủy"
                               cancelText="Không"
@@ -234,11 +320,45 @@ export default function MyTicketsPage() {
                               <Button danger size="small">Hủy vé</Button>
                           </Popconfirm>
                       )}
+
+                      {/* Nút Đánh giá */}
+                      {ticket.tripId.status === 'completed' && 
+                          ['confirmed', 'boarded', 'completed'].includes(ticket.status) && (
+                            <>
+                                {ticket.isReviewed ? (
+                                    <Button 
+                                        size="small"
+                                        className="text-green-600 border-green-600 hover:text-green-500"
+                                        onClick={() => {
+                                            setReviewData(ticket.reviewDetail); 
+                                            setReviewTripId(ticket.tripId._id);
+                                            setOpenReview(true);
+                                        }}
+                                    >
+                                        Xem đánh giá
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        size="small"
+                                        icon={<StarOutlined />}
+                                        className="text-yellow-600 border-yellow-600 hover:text-yellow-500"
+                                        onClick={() => {
+                                            setReviewData(null); 
+                                            setReviewTripId(ticket.tripId._id);
+                                            setOpenReview(true);
+                                        }}
+                                    >
+                                        Đánh giá
+                                    </Button>
+                                )}
+                            </>
+                        )}
                         <Button 
                             onClick={() => {
                                 setSelectedTicket(ticket);
                                 setIsModalOpen(true);
                             }}
+                            size="small"
                         >
                             Chi tiết
                         </Button>
@@ -318,6 +438,19 @@ export default function MyTicketsPage() {
             )}
         </Modal>
       </div>
+        {reviewTripId && (
+          <ReviewModal
+            open={openReview}
+            tripId={reviewTripId}
+            initialData={reviewData} 
+            onClose={() => {
+              setOpenReview(false);
+              setReviewTripId(null);
+              setReviewData(null);
+              fetchTickets(); 
+            }}
+          />
+      )}
     </div>
   );
 }

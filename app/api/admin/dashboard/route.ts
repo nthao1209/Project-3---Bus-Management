@@ -17,14 +17,14 @@ export async function GET() {
       Trip.countDocuments(),
       
       Booking.aggregate([
-        { $match: { status: 'confirmed' } },
+        { $match: { status: 'boarded' } },
         { $group: { _id: null, total: { $sum: '$totalPrice' } } }
       ]),
 
       Booking.aggregate([
         { 
           $match: { 
-            status: 'confirmed',
+            status: 'boarded',
             createdAt: { $gte: startDate, $lte: endDate }
           } 
         },

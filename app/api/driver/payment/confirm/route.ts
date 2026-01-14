@@ -14,44 +14,42 @@ export async function POST(req: Request) {
     const booking = await Booking.findById(bookingId);
     if (!booking) return NextResponse.json({ message: 'Booking not found' }, { status: 404 });
 
+    // 1. Update Booking
     booking.status = 'confirmed';
     await booking.save();
 
+    // 2. Update Payment
     await Payment.findOneAndUpdate(
       { bookingId: booking._id },
-      { 
-        status: 'success', 
-        method: 'offline', 
-        paymentDate: new Date() 
-      },
+      { status: 'success', method: 'offline', paymentDate: new Date() },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
+    // 3. Update Trip Seats (Chuyển holding -> booked)
     const tripUpdate: any = {};
     booking.seatCodes.forEach((code: string) => {
       tripUpdate[`seatsStatus.${code}.status`] = 'booked';
       tripUpdate[`seatsStatus.${code}.bookingId`] = booking._id;
     });
-    
     await Trip.findByIdAndUpdate(booking.tripId, { $set: tripUpdate });
 
+    // --- QUAN TRỌNG: Gửi Socket Realtime ---
     try {
-      const io = (global as any).io;
-      if (io) {
-        io.to(`trip_${booking.tripId}`).emit('booking_updated', {
-          bookingId: booking._id,
-          status: 'confirmed',
-          seatCodes: booking.seatCodes
-        });
-        
-         const trip = await Trip.findById(booking.tripId).select('companyId');
-         if (trip) {
-            io.to(`company_${trip.companyId}`).emit('booking_updated', { type: 'payment_confirmed' });
-         }
-      }
+        const io = (global as any).io;
+        if (io) {
+            const tripId = booking.tripId.toString();
+            console.log(`📡 Emitting payment confirmed for trip ${tripId}`);
+
+            io.to(`${tripId}`).emit('booking_updated', { 
+                bookingId: booking._id,
+                status: 'confirmed',
+                seatCodes: booking.seatCodes
+            });
+        }
     } catch (e) {
-      console.error('Socket emit error:', e);
+        console.error("Socket emit error:", e);
     }
+    // ----------------------------------------
 
     return NextResponse.json({ success: true, message: 'Đã xác nhận thu tiền' });
   } catch (error: any) {

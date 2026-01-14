@@ -26,11 +26,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         const io = (global as any).io;
         if (io) {
             // Báo cho room chuyến xe
-            io.to(`trip_${trip._id}`).emit('trip_status_updated', { 
+            io.to(`${trip._id}`).emit('trip_status_updated', { 
                 tripId: trip._id, 
                 status: status 
             });
-            // Báo cho room công ty 
             io.to(`company_${trip.companyId}`).emit('trip_status_updated', {
                 tripId: trip._id,
                 status: status

@@ -12,8 +12,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    // Lọc chuyến đi của tài xế này
-    // Chỉ lấy chuyến chưa hoàn thành hoặc đã hoàn thành trong vòng 24h qua
+    
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
 

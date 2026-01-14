@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { dbConnect } from '@/lib/dbConnect';
 import { getCurrentUser } from '@/lib/auth';
-import { Company, Booking, Trip } from '@/models/models';
+import { Company, Booking, Trip, Review } from '@/models/models';
 
 export async function GET(request: Request) {
   try {
@@ -94,25 +94,46 @@ export async function GET(request: Request) {
 
     const tripIds = trips.map(t => t._id);
 
-    // Tìm các vé đã thanh toán thuộc các chuyến đi đó
-    const confirmedBookings = await Booking.find({
-      tripId: { $in: tripIds },
-      status: 'confirmed'
-    }).populate({
-      path: 'tripId',
-      select: 'departureTime', // Cần lấy departureTime để map vào biểu đồ
-      populate: { path: 'routeId', select: 'name' }
-    });
+    const validBookings = await Booking.find({
+        tripId: { $in: tripIds },
+        status: 'boarded'
+      }).populate({
+        path: 'tripId',
+        select: 'departureTime',
+        populate: { path: 'routeId', select: 'name' }
+      });
 
+     const reviewStats = await Review.aggregate([
+      { 
+        $match: { 
+          companyId: company._id,
+          createdAt: { $gte: startDate, $lte: endDate } // Lọc theo thời gian Dashboard đang chọn
+        } 
+      },
+      {
+        $group: {
+          _id: null,
+          avgRating: { $avg: '$rating' }, // Tính trung bình
+          count: { $sum: 1 }              // Đếm số lượng
+        }
+      }
+    ]);
+
+    const periodRating = reviewStats.length > 0 ? parseFloat(reviewStats[0].avgRating.toFixed(1)) : 0;
+    const periodReviewCount = reviewStats.length > 0 ? reviewStats[0].count : 0;
     // 4. Tính toán thống kê
-    const totalRevenue = confirmedBookings.reduce((sum, b) => sum + b.totalPrice, 0);
-    const totalTickets = confirmedBookings.length;
+    const totalRevenue = validBookings.reduce(
+                      (sum, b) => sum + b.totalPrice,
+                      0
+                    );
+
+    const totalTickets = validBookings.length;
+
     const totalTrips = trips.length;
 
     // 5. Fill dữ liệu vào Chart
-    confirmedBookings.forEach(booking => {
+    validBookings.forEach(booking => {
       // Dùng thời gian khởi hành của chuyến xe để thống kê doanh thu (hợp lý hơn ngày đặt vé)
-      // Hoặc dùng booking.createdAt nếu muốn thống kê theo thời điểm bán vé
       const timePoint = new Date((booking.tripId as any).departureTime); 
       const price = booking.totalPrice;
 
@@ -171,6 +192,8 @@ export async function GET(request: Request) {
         totalRevenue,
         totalTickets,
         totalTrips,
+        periodRating,
+        periodReviewCount,
         chartData: finalChartData,
         recentBookings,
         needsSelection: false

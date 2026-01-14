@@ -1,7 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { dbConnect } from '@/lib/dbConnect';
-import { Booking, Trip, Company } from '@/models/models'; 
+import { Booking, Trip, Company, Review } from '@/models/models'; 
 import { getCurrentUser } from '@/lib/auth';
 
 type RouteParams = {
@@ -35,14 +35,36 @@ export async function GET(req: Request, { params }: RouteParams) {
       .sort({ createdAt: -1 }) 
       .lean();
 
-    
+     const reviews = await Review.find({ tripId: tripId }).lean();
+      let averageRating = 0;
+      if (reviews.length > 0) {
+        const totalStars = reviews.reduce((sum: number, r: any) => sum + r.rating, 0);
+        averageRating = parseFloat((totalStars / reviews.length).toFixed(1)); // Làm tròn 1 số thập phân
+      }
+
+     const bookingsWithReview = bookings.map((booking: any) => {
+        const review = reviews.find(r => 
+            r.userId.toString() === booking.userId?.toString()
+        );
+        return {
+            ...booking,
+            review: review ? {
+                rating: review.rating,
+                comment: review.comment,
+                createdAt: review.createdAt
+            } : null
+        };
+    });
+
     const totalSeats = trip.seatsStatus ? Object.keys(trip.seatsStatus).length : 40;
 
     return NextResponse.json({
       success: true,
       data: {
-        bookings: bookings,
-        totalSeats: totalSeats
+        bookings: bookingsWithReview,
+        totalSeats: totalSeats,
+        averageRating,
+        totalReviews: reviews.length
       }
     });
 

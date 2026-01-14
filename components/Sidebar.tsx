@@ -15,9 +15,10 @@ import {
   TeamOutlined,
   FileTextOutlined,
   CalendarOutlined,
-  MenuFoldOutlined,
-  MenuUnfoldOutlined,
+  NotificationOutlined,
   SettingOutlined,
+  MenuUnfoldOutlined,
+  MenuFoldOutlined
 } from '@ant-design/icons';
 
 const { Sider } = Layout;
@@ -73,6 +74,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, setCollapsed }) => {
     { path: '/admin/companies', label: 'Quản lý Nhà xe', icon: <ShopOutlined />, roles: ['admin'] },
     { path: '/admin/users', label: 'Người dùng', icon: <UserOutlined />, roles: ['admin'] },
     { path: '/admin/stations', label: 'Quản lý bến xe', icon: <CarOutlined />, roles: ['admin'] },
+    { path: '/admin/reviews', label: 'Quản lý chất lượng nhà xe', icon:<NotificationOutlined/>, roles: ['admin']},
     { path: '/admin/settings', label: 'Cài đặt hệ thống', icon: <SettingOutlined />, roles: ['admin'] },
 
     { path: '/owner/dashboard', label: 'Tổng quan', icon: <DashboardOutlined />, roles: ['owner'] },

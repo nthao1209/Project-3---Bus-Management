@@ -1,18 +1,17 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Card, Select, DatePicker, Table, Tag, Row, Col, 
-  Statistic, Empty, Spin, message, Badge, Tooltip, Button 
+  Statistic, Empty, message, Badge, Popover, Rate
 } from 'antd';
 import { 
   UserOutlined, PhoneOutlined, ClockCircleOutlined, 
-  SyncOutlined, CheckCircleOutlined, StopOutlined 
+  SyncOutlined, CheckCircleOutlined, StopOutlined,StarFilled, StarOutlined, MessageOutlined 
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { io, Socket } from 'socket.io-client';
 
-// --- INTERFACES ---
 interface Company {
   _id: string;
   name: string;
@@ -33,18 +32,21 @@ interface BookingItem {
     phone: string;
     email?: string;
   };
-  status: 'pending_payment' | 'confirmed' | 'cancelled';
+  status: 'pending_payment' | 'confirmed' | 'cancelled'| 'boarded';
   totalPrice: number;
   pickupPoint: { name: string; time: string, address: string };
   dropoffPoint: { name: string; address: string };
+  review?: {
+      rating: number;
+      comment: string;
+      createdAt: string;
+  } | null;
   createdAt: string;
 }
 
 export default function BookingManager() {
-  // --- STATE ---
   const [socket, setSocket] = useState<Socket | null>(null);
   
-  // Filters
   const [companies, setCompanies] = useState<Company[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<string | null>(null);
   
@@ -53,12 +55,15 @@ export default function BookingManager() {
   const [trips, setTrips] = useState<TripOption[]>([]);
   const [selectedTripId, setSelectedTripId] = useState<string | null>(null);
 
-  // Data Display
   const [bookings, setBookings] = useState<BookingItem[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
-  const [tripStats, setTripStats] = useState({ total: 0, booked: 0, revenue: 0 });
-
-  // --- 1. INITIAL LOAD & SOCKET SETUP ---
+  const [tripStats, setTripStats] = useState({ 
+      total: 0, 
+      booked: 0, 
+      revenue: 0,
+      rating: 0,       
+      reviewCount: 0   
+  });
   useEffect(() => {
     // Kết nối Socket chung
     const socketInstance = io({ path: '/socket.io' });
@@ -84,14 +89,13 @@ export default function BookingManager() {
     };
   }, []);
 
-  // --- 2. FETCH TRIPS (Khi đổi Ngày hoặc Nhà xe) ---
   useEffect(() => {
     if (!selectedCompany || !selectedDate) return;
 
     const fetchTrips = async () => {
       setTrips([]);
-      setSelectedTripId(null); // Reset chuyến đã chọn
-      setBookings([]); // Clear bảng cũ
+      setSelectedTripId(null); 
+      setBookings([]); 
       
       try {
         const dateStr = selectedDate.format('YYYY-MM-DD');
@@ -108,30 +112,41 @@ export default function BookingManager() {
     fetchTrips();
   }, [selectedCompany, selectedDate]);
 
-  // --- 3. FETCH BOOKINGS (Khi chọn Chuyến xe) ---
   const fetchTripDetails = async () => {
     if (!selectedTripId) return;
     
     setLoadingBookings(true);
     try {
-      // Gọi API lấy danh sách booking của chuyến này
       const res = await fetch(`/api/owner/bookings/by-trips/${selectedTripId}`);
       const data = await res.json();
       
       if (data.success) {
-        setBookings(data.data.bookings);
-        // Tính toán thống kê nhanh
-        const totalRev = data.data.bookings.reduce((sum: number, b: any) => 
-          b.status === 'confirmed' ? sum + b.totalPrice : sum, 0
+        const bookingList = data.data.bookings;
+
+        setBookings(bookingList);
+
+        // 1️ Ghế đã chiếm (confirmed + boarded)
+        const bookedSeats = bookingList.reduce(
+          (sum: number, b: any) =>
+            ['confirmed', 'boarded'].includes(b.status)
+              ? sum + b.seatCodes.length
+              : sum,
+          0
         );
-        const bookedSeats = data.data.bookings.reduce((sum: number, b: any) => 
-          ['confirmed', 'pending_payment'].includes(b.status) ? sum + b.seatCodes.length : sum, 0
+
+        // 2 Doanh thu THỰC (CHỈ boarded)
+        const totalRevenue = bookingList.reduce(
+          (sum: number, b: any) =>
+            b.status === 'boarded' ? sum + b.totalPrice : sum,
+          0
         );
 
         setTripStats({
-          total: data.data.totalSeats || 40, // Lấy từ API hoặc default
+          total: data.data.totalSeats || 40,
           booked: bookedSeats,
-          revenue: totalRev
+          revenue: totalRevenue,
+          rating: data.data.averageRating || 0,  
+          reviewCount: data.data.totalReviews || 0 
         });
       }
     } catch (error) {
@@ -141,35 +156,34 @@ export default function BookingManager() {
     }
   };
 
-  useEffect(() => {
-    fetchTripDetails();
-
     // --- REAL-TIME LOGIC ---
-    if (socket && selectedTripId) {
-      // Join room riêng của chuyến xe này
-      console.log(`🔌 Joining room: trip_${selectedTripId}`);
-      socket.emit('join_trip_room', selectedTripId);
+   useEffect(() => {
+      fetchTripDetails();
 
-      // Lắng nghe sự kiện booking mới hoặc thay đổi trạng thái
-      const handleUpdate = (data: any) => {
-        console.log('⚡ Realtime update received:', data);
+      if (!socket || !selectedTripId) return;
+
+      console.log(` Joining trip room: ${selectedTripId}`);
+      
+      socket.emit('join_trip', selectedTripId);
+
+      const handleBookingUpdate = (data: any) => {
+        console.log(' Booking update:', data);
         message.info('Dữ liệu chuyến xe vừa được cập nhật');
-        fetchTripDetails(); // Reload lại dữ liệu mới nhất
+        fetchTripDetails();
       };
 
-      socket.on('booking_updated', handleUpdate);
-      socket.on('new_booking', handleUpdate);
+      socket.on('booking_updated', handleBookingUpdate);
+      socket.on('new_booking', handleBookingUpdate);
 
       return () => {
-        console.log(`🔌 Leaving room: trip_${selectedTripId}`);
-        socket.emit('leave_trip_room', selectedTripId);
-        socket.off('booking_updated');
-        socket.off('new_booking');
-      };
-    }
-  }, [selectedTripId, socket]); // Chạy lại khi đổi chuyến
+        console.log(` Leaving trip room: ${selectedTripId}`);
 
-  // --- HELPER RENDERS ---
+        socket.off('booking_updated', handleBookingUpdate);
+        socket.off('new_booking', handleBookingUpdate);
+      };
+    }, [selectedTripId, socket]);
+
+
   const columns = [
     {
       title: 'Ghế',
@@ -225,6 +239,7 @@ export default function BookingManager() {
         const config: any = {
           confirmed: { color: 'success', text: 'Đã thanh toán', icon: <CheckCircleOutlined /> },
           pending_payment: { color: 'warning', text: 'Giữ chỗ', icon: <ClockCircleOutlined /> },
+          boarded: { color: 'processing', text: 'Đã lên xe', icon: <CheckCircleOutlined /> },
           cancelled: { color: 'error', text: 'Đã hủy', icon: <StopOutlined /> },
         };
         const s = config[status] || { color: 'default', text: status };
@@ -236,7 +251,36 @@ export default function BookingManager() {
       dataIndex: 'createdAt',
       key: 'createdAt',
       render: (date: string) => <span className="text-gray-400 text-xs">{dayjs(date).format('DD/MM HH:mm')}</span>
-    }
+    },
+    {
+      title: 'Đánh giá',
+      key: 'review',
+      width: 150,
+      render: (_: any, record: BookingItem) => {
+        if (!record.review) {
+            return <span className="text-gray-400 text-xs italic">Chưa đánh giá</span>;
+        }
+
+        const content = (
+            <div className="max-w-xs">
+                <div className="flex justify-between items-center mb-2">
+                    <Rate disabled defaultValue={record.review.rating} style={{ fontSize: 14 }} />
+                    <span className="text-xs text-gray-400">
+                        {dayjs(record.review.createdAt).format('DD/MM/YYYY')}
+                    </span>
+                </div>
+                <p className="text-gray-700 italic">"{record.review.comment || 'Không có lời nhắn'}"</p>
+            </div>
+        );
+        return (
+            <Popover content={content} title="Chi tiết đánh giá" trigger="hover">
+                <Tag color={record.review.rating >= 4 ? 'green' : (record.review.rating >= 3 ? 'orange' : 'red')} className="cursor-pointer">
+                    <StarFilled className="mr-1" /> {record.review.rating}/5
+                </Tag>
+            </Popover>
+        );
+      }
+    },
   ];
 
   return (
@@ -292,7 +336,7 @@ export default function BookingManager() {
         <div className="animate-fade-in">
           {/* 2. THỐNG KÊ NHANH */}
           <Row gutter={16} className="mb-4">
-            <Col span={8}>
+            <Col span={6}>
               <Card bordered={false} className="shadow-sm bg-blue-50">
                 <Statistic 
                   title="Ghế đã đặt / Tổng số" 
@@ -302,7 +346,7 @@ export default function BookingManager() {
                 />
               </Card>
             </Col>
-            <Col span={8}>
+            <Col span={6}>
               <Card bordered={false} className="shadow-sm bg-green-50">
                 <Statistic 
                   title="Doanh thu chuyến" 
@@ -313,7 +357,19 @@ export default function BookingManager() {
                 />
               </Card>
             </Col>
-            <Col span={8}>
+            <Col span={6}>
+              <Card bordered={false} className="shadow-sm bg-yellow-50">
+                <Statistic 
+                  title="Chất lượng chuyến" 
+                  value={tripStats.rating} 
+                  precision={1} 
+                  suffix={`/ 5 (${tripStats.reviewCount} đánh giá)`}
+                  valueStyle={{ color: '#d4b106' }} 
+                  prefix={<StarFilled />}
+                />
+              </Card>
+            </Col>
+            <Col span={6}>
                <Card bordered={false} className="shadow-sm flex items-center justify-center h-full cursor-pointer hover:bg-gray-50" onClick={fetchTripDetails}>
                   <div className="text-center text-gray-500">
                     <SyncOutlined spin={loadingBookings} className="text-xl mb-1 block" />
@@ -322,7 +378,7 @@ export default function BookingManager() {
                </Card>
             </Col>
           </Row>
-
+          
           <Card 
             title={
               <div className="flex items-center gap-2">

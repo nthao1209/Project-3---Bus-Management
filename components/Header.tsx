@@ -71,7 +71,7 @@
 
     const currentUI = user ? roleUI[user.role] : null;
     const showNotification =
-          user && (user.role === 'user' || user.role === 'driver');
+          user && (user.role === 'user' || user.role === 'driver'|| user.role === 'owner');
     const isUser = user?.role === 'user';
 
 
@@ -143,6 +143,24 @@
               setUnreadCount(prev => prev + 1);
               message.info(notif.title || 'Thông báo mới');
             } catch (err) { console.error('[SOCKET] notification handler error:', err); }
+          });
+          s.on('receive_notification', (notif: any) => {
+            console.log('[SOCKET] Received admin notification:', notif);
+            try {
+              setNotifications(prev => [notif, ...(prev || [])]);
+              setUnreadCount(prev => prev + 1);
+              message.warning({
+                content: (
+                  <div>
+                    <div className="font-bold text-red-600">{notif.title}</div>
+                    <div>{notif.message}</div>
+                  </div>
+                ),
+                duration: 5,
+              });
+            } catch (err) { 
+              console.error('[SOCKET] handler error:', err); 
+            }
           });
 
           s.on('disconnect', () => {

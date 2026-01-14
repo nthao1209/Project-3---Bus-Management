@@ -178,8 +178,6 @@ const BusSchema = new Schema<Bus>({
   status: { type: String, enum: ['active', 'maintenance'], default: 'active' }
 }, { timestamps: true });
 
-BusSchema.index({ plateNumber: 1 }, { unique: true });
-
 
 interface RoutePoint {
   name: string;
@@ -221,13 +219,6 @@ const RouteSchema = new Schema<Route>({
 
 }, { timestamps: true });
 
-
-interface TripPoint {
-  stationId?: Types.ObjectId;
-  name: string;
-  address?: string;
-  time: Date;
-}
 
 type SeatStatus = 'available' | 'holding' | 'booked' ;
 
@@ -406,7 +397,6 @@ export interface Booking {
   pickupPoint?: {
     name: string;
     address?: string;
-    time?: Date;
   };
   dropoffPoint?: {
     name: string;
@@ -521,6 +511,28 @@ const SettingsSchema = new Schema<Settings>({
   updatedBy: { type: Schema.Types.ObjectId, ref: 'User' }
 }, { timestamps: true });
 
+export interface Review {
+  userId: Types.ObjectId;
+  tripId: Types.ObjectId;
+  companyId: Types.ObjectId;
+  rating: number; // 1 - 5
+  comment?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+const ReviewSchema = new Schema<Review>({
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  tripId: { type: Schema.Types.ObjectId, ref: 'Trip', required: true },
+  companyId: { type: Schema.Types.ObjectId, ref: 'Company', required: true },
+  rating: { type: Number, min: 1, max: 5, required: true },
+  comment: { type: String, maxlength: 300 },
+}, { timestamps: true });
+
+// 1 user chỉ review 1 lần / 1 trip
+ReviewSchema.index({ userId: 1, tripId: 1 }, { unique: true });
+
+
 
 export const User = mongoose.models.User || mongoose.model<User>('User', UserSchema);
 export const Company = mongoose.models.Company || mongoose.model<Company>('Company', CompanySchema);
@@ -533,4 +545,5 @@ export const Payment = mongoose.models.Payment || mongoose.model<Payment>('Payme
 export const Notification = mongoose.models.Notification || mongoose.model<Notification>('Notification', NotificationSchema);
 export const TripTemplate = mongoose.models.TripTemplate || mongoose.model<TripTemplate>('TripTemplate', TripTemplateSchema);
 export const Settings = mongoose.models.Settings || mongoose.model<Settings>('Settings', SettingsSchema);
+export const Review = mongoose.models.Review || mongoose.model<Review>('Review', ReviewSchema);
 

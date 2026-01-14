@@ -36,7 +36,7 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [tripInfo, setTripInfo] = useState<TripInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'confirmed'>('all');
+  const [filter, setFilter] = useState<'all' | 'pending' | 'paid'>('all');
   const router = useRouter();
   const [socket, setSocket] = useState<Socket | null>(null);
 
@@ -77,9 +77,26 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
     socketInstance.on('connect', () => {
       console.log('Driver connected to socket');
       // 3. Tham gia vào room của chuyến đi này
-      // Tên room thống nhất là: `trip_{tripId}`
-      socketInstance.emit('join_trip_room', id);
+     
+      socketInstance.emit('join_trip', id);
     });
+
+    const handleUpdate = (data: any) => {
+      console.log('Realtime update:', data);
+      
+      // OPTIMISTIC UPDATE: Cập nhật state ngay lập tức để giao diện phản hồi nhanh
+      // (Phòng trường hợp fetchData bị chậm)
+      setBookings(prev => prev.map(b => {
+        if (b._id === data.bookingId) {
+          return { ...b, status: data.status };
+        }
+        return b;
+      }));
+
+      // Sau đó fetch lại để đảm bảo đồng bộ hoàn toàn
+      fetchData(true);
+    };
+
 
     socketInstance.on('new_booking', (data) => {
       message.info(` Có khách mới đặt ghế: ${data.seatCodes?.join(', ')}`);
@@ -107,10 +124,35 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
       });
       if (res.ok) {
         message.success(`Đã chuyển sang ${status === 'running' ? 'Đang chạy' : 'Hoàn thành'}`);
-        router.refresh();
+        fetchData(true);
       }
     } catch (e) {
       message.error('Lỗi cập nhật');
+    }
+  };
+  
+  // Hàm xử lý xác nhận khách lên xe
+     const handleBoarding = async (bookingId: string) => {
+    try {
+      setBookings(prev => prev.map(b => 
+        b._id === bookingId ? { ...b, status: 'boarded' } : b
+      ));
+
+      const res = await fetch(`/api/driver/trips/${id}/bookings/${bookingId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'boarded' })
+      });
+
+      if (res.ok) {
+        message.success('Đã đón khách!');
+      } else {
+        message.error('Lỗi cập nhật');
+        fetchData(true); 
+      }
+    } catch (error) {
+      message.error('Lỗi kết nối');
+      fetchData(true);
     }
   };
 
@@ -133,30 +175,34 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
 
   const { isLate, diffMinutes } = checkIsLate();
 
-  const confirmPayment = async (bookingId: string) => {
+   const confirmPayment = async (bookingId: string) => {
     try {
+      setBookings(prev => prev.map(b => 
+        b._id === bookingId ? { ...b, status: 'confirmed' } : b
+      ));
+
       const res = await fetch('/api/driver/payment/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bookingId })
       });
+      
       if (res.ok) {
         message.success('Đã xác nhận thu tiền');
-        setBookings(prev => prev.map(b => 
-          b._id === bookingId ? { ...b, status: 'confirmed' } : b
-        ));
       } else {
         message.error('Lỗi server');
+        fetchData(true);
       }
     } catch (e) {
       message.error('Lỗi kết nối');
+      fetchData(true);
     }
   };
 
   const filteredBookings = bookings.filter(b => {
     if (filter === 'all') return true;
     if (filter === 'pending') return b.status === 'pending_payment';
-    if (filter === 'confirmed') return b.status === 'confirmed';
+    if (filter === 'paid') return b.status === 'confirmed' || b.status === 'boarded';
     return true;
   });
 
@@ -196,7 +242,6 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
         )}
         
         <div className="flex gap-2 mb-2">
-           {/* Chỉ hiện nút Bắt đầu nếu chưa chạy */}
            {tripInfo?.status === 'scheduled' && (
              <Popconfirm title="Bắt đầu chạy chuyến này?" onConfirm={() => updateTripStatus('running')}>
                <Button 
@@ -224,7 +269,7 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
           options={[
             { label: `Tất cả (${bookings.length})`, value: 'all' },
             { label: 'Chưa TT', value: 'pending' },
-            { label: 'Đã TT', value: 'confirmed' },
+            { label: 'Đã TT', value: 'paid' },
           ]}
         />
       </div>
@@ -247,8 +292,8 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
                     </a>
                   </div>
                 </div>
-                <Tag color={item.status === 'confirmed' ? 'green' : 'orange'}>
-                   {item.status === 'confirmed' ? 'Đã TT' : 'Chưa TT'}
+                <Tag color={item.status === 'confirmed'||'boarded' ? 'green' : 'orange'}>
+                   {item.status === 'confirmed'||'boarded' ? 'Đã TT' : 'Chưa TT'}
                 </Tag>
               </div>
 
@@ -269,30 +314,41 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
               </div>
 
               <div className="flex justify-between items-center">
-                 <div className="font-bold text-lg text-gray-700">
+                <div className="font-bold text-lg text-gray-700">
                     {item.totalPrice.toLocaleString()} đ
-                 </div>
-                 
-                 {item.status === 'pending_payment' && (
-                   <Popconfirm 
-                      title="Xác nhận đã thu tiền mặt?" 
-                      description={`Số tiền: ${item.totalPrice.toLocaleString()}đ`}
-                      onConfirm={() => confirmPayment(item._id)}
-                      okText="Đã thu"
-                      cancelText="Hủy"
-                   >
-                     <Button type="primary" icon={<DollarCircleFilled />} className="bg-green-600 hover:bg-green-500 border-none shadow-md">
-                       Thu tiền
-                     </Button>
-                   </Popconfirm>
-                 )}
-                 
-                 {item.status === 'confirmed' && (
-                    <span className="text-green-600 font-medium flex items-center gap-1">
-                       <CheckCircleFilled /> Xong
-                    </span>
-                 )}
-              </div>
+                </div>
+              
+              {/* CASE 1: Chưa thanh toán -> Hiện nút Thu Tiền */}
+              {item.status === 'pending_payment' && (
+                <Popconfirm 
+                    title="Xác nhận đã thu tiền?" 
+                    onConfirm={() => confirmPayment(item._id)}
+                    okText="Đã thu"
+                    cancelText="Hủy"
+                >
+                  <Button type="primary" icon={<DollarCircleFilled />} className="bg-green-600 hover:bg-green-500 border-none shadow-md">
+                    Thu tiền
+                  </Button>
+                </Popconfirm>
+              )}
+              
+              {/* CASE 2: Đã thanh toán (Confirmed) -> Hiện nút Đã Đón */}
+              {item.status === 'confirmed' && (
+                  <Button 
+                    type="primary" 
+                    size="small" 
+                    className="bg-blue-600"
+                    onClick={() => handleBoarding(item._id)}
+                  >
+                    Đón khách
+                  </Button>
+              )}
+
+              {/* CASE 3: Đã lên xe (Boarded) -> Hiện dấu tích */}
+                  {item.status === 'boarded' && (
+                      <Tag color="purple" icon={<CheckCircleFilled />}>Đã lên xe</Tag>
+                  )}
+                </div>
             </Card>
           )}
         />

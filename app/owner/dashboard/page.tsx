@@ -3,13 +3,13 @@
 import React, { useEffect, useState } from 'react';
 import { 
   Card, Row, Col, Statistic, Table, Tag, Spin, message, 
-  Badge, Button, Dropdown, DatePicker, Radio 
+  Badge, Button, Dropdown, DatePicker, Radio, notification 
 } from 'antd';
 import type { MenuProps } from 'antd';
 import { 
   DollarCircleOutlined, ShoppingOutlined, CarOutlined, 
   ClockCircleOutlined, BellOutlined, DownOutlined, ShopOutlined,
-  SyncOutlined // Đã thêm icon này
+  SyncOutlined, StarFilled
 } from '@ant-design/icons';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend 
@@ -25,10 +25,59 @@ export default function OwnerDashboard() {
   const [selectedCompany, setSelectedCompany] = useState<string>('');
   const [companies, setCompanies] = useState<any[]>([]);
   
+  // State user hiện tại (để join room thông báo cá nhân)
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
   // State cho bộ lọc
   const [filterType, setFilterType] = useState<'day' | 'month' | 'year'>('month');
   const [filterDate, setFilterDate] = useState<dayjs.Dayjs>(dayjs());
 
+  // 1. Lấy thông tin User hiện tại (Thay thế cho getCurrentUser)
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const res = await fetch('/api/auth/me');
+        const json = await res.json();
+        if (json.success) {
+          setCurrentUser(json.user);
+        }
+      } catch (error) {
+        console.error("Lỗi lấy thông tin user:", error);
+      }
+    };
+    fetchUser();
+  }, []);
+
+  // 2. Socket: Lắng nghe Thông báo cá nhân (Admin gửi tới)
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const socketInstance = io({ path: '/socket.io' });
+
+    socketInstance.on('connect', () => {
+      console.log('Socket joined user room:', currentUser._id);
+      socketInstance.emit('join_user_room', currentUser._id);
+    });
+
+    // LẮNG NGHE SỰ KIỆN: receive_notification
+    socketInstance.on('receive_notification', (notif: any) => {
+      console.log('🔔 New notification:', notif);
+      notification.warning({
+      title: notif.title || 'Thông báo',
+      message: notif.message,
+      duration: 10,
+      placement: 'topRight',
+      style: { borderLeft: '4px solid #faad14' },
+    });
+
+    });
+
+    return () => {
+      socketInstance.disconnect();
+    };
+  }, [currentUser]);
+
+  // 3. Hàm lấy thống kê
   const fetchStats = async (companyId?: string) => {
     try {
       setLoading(true);
@@ -38,7 +87,6 @@ export default function OwnerDashboard() {
       if (companyId) params.append('companyId', companyId);
       else if (selectedCompany) params.append('companyId', selectedCompany);
 
-      // Thêm tham số lọc
       params.append('type', filterType);
       params.append('date', filterDate.format('YYYY-MM-DD'));
 
@@ -48,12 +96,14 @@ export default function OwnerDashboard() {
       if (json.success) {
         if (json.data.needsSelection) {
           setCompanies(json.data.companies || []);
-          setData(null);
+          if (!selectedCompany) {
+            setData(null);
+          }
         } else {
           setData(json.data);
-          if (json.data.company) {
-            setSelectedCompany(json.data.company._id);
-          }
+          if (json.data.company && !selectedCompany) {
+              setSelectedCompany(json.data.company._id);
+            }
         }
       } else {
         message.warning(json.message || 'Chưa tải được dữ liệu thống kê');
@@ -68,20 +118,14 @@ export default function OwnerDashboard() {
 
   const handleCompanyChange = (companyId: string) => {
     setSelectedCompany(companyId);
-    // Khi đổi công ty, gọi fetch ngay lập tức với ID mới
-    // (useEffect sẽ lo phần filterDate/Type)
-    if (socket && socket.connected) {
-      socket.emit('join_company_dashboard', companyId);
-      console.log('Switched to company room:', companyId);
-    }
   };
 
-  // Gọi API khi thay đổi bộ lọc hoặc công ty
+  // Gọi API khi filter thay đổi
   useEffect(() => {
     fetchStats();
   }, [filterType, filterDate, selectedCompany]);
 
-  // Setup Socket & Auto Refresh
+  // 4. Socket: Lắng nghe Booking mới / Cập nhật Dashboard
   useEffect(() => {
     const socketInstance = io({
       path: '/socket.io',
@@ -89,9 +133,8 @@ export default function OwnerDashboard() {
 
     socketInstance.on('connect', () => {
       console.log('Dashboard connected to Socket.IO, ID:', socketInstance.id);
-      if (selectedCompany) {
-         socketInstance.emit('join_company_dashboard', selectedCompany);
-      }
+      if (!selectedCompany) return;
+      socketInstance.emit('join_company_dashboard', selectedCompany);
     });
 
     socketInstance.on('new_booking', (eventData: any) => {
@@ -126,11 +169,7 @@ export default function OwnerDashboard() {
       socketInstance.disconnect();
       clearInterval(intervalId);
     };
-  }, []); // Run once on mount (socket init)
-
-  if (loading && !data && companies.length === 0) {
-    return <div className="flex h-screen justify-center items-center"><Spin size="large" /></div>;
-  }
+  }, [selectedCompany]); // Thêm dependency selectedCompany để join room đúng
 
   const columns = [
     {
@@ -183,6 +222,7 @@ export default function OwnerDashboard() {
         let text = status;
         if (status === 'confirmed') { color = 'green'; text = 'Đã thanh toán'; }
         if (status === 'pending_payment') { color = 'orange'; text = 'Chờ thanh toán'; }
+        if (status === 'boarded') { color = 'blue'; text = 'Đã lên xe'; }
         if (status === 'cancelled') { color = 'red'; text = 'Đã hủy'; }
         return <Tag color={color}>{text}</Tag>;
       }
@@ -212,7 +252,14 @@ export default function OwnerDashboard() {
   };
 
   return (
-    <div className="p-6 bg-slate-50 min-h-screen">
+    <div className="p-6 bg-slate-50 min-h-screen relative">
+      {/* Loading Overlay */}
+      {loading && (
+        <div className="fixed inset-0 bg-black/10 z-50 flex items-center justify-center">
+          <Spin size="large" />
+        </div>
+      )}
+
       <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         {/* Phần Tiêu đề & Chọn công ty */}
         <div>
@@ -314,8 +361,8 @@ export default function OwnerDashboard() {
         </Card>
       )}
 
-      {/* Case 2: Có công ty nhưng chưa chọn (hoặc đang load list) */}
-      {!data && companies.length > 0 && (
+      {/* Case 2: Có công ty nhưng chưa chọn */}
+      {!data && companies.length > 0 && !loading && (
         <Card className="text-center py-12">
           <ShopOutlined style={{ fontSize: 48, color: '#999', marginBottom: 16 }} />
           <h3 className="text-lg font-medium mb-2">Chọn công ty để xem thống kê</h3>
@@ -378,16 +425,20 @@ export default function OwnerDashboard() {
                 />
               </Card>
             </Col>
+            
+            {/* CARD THỐNG KÊ ĐÁNH GIÁ */}
             <Col xs={24} sm={12} lg={6}>
               <Card className="shadow-sm">
-                <div className="text-gray-500 text-sm mb-1">Trạng thái công ty</div>
-                <div className="flex items-center gap-2">
-                  <Tag color={data.company?.status === 'active' ? 'green' : 'orange'} className="text-base">
-                    {data.company?.status === 'active' ? 'Đang hoạt động' : 'Chờ duyệt'}
-                  </Tag>
-                </div>
-                <div className="mt-2 text-xs text-gray-500">
-                  Hotline: {data.company?.hotline}
+                <Statistic
+                  title="Chất lượng dịch vụ"
+                  value={data?.periodRating || 0}
+                  precision={1}
+                  valueStyle={{ color: '#faad14', fontWeight: 'bold' }} // Màu vàng sao
+                  prefix={<StarFilled />}
+                  suffix={`/ 5 (${data?.periodReviewCount || 0})`}
+                />
+                <div className="text-xs text-gray-400 mt-2">
+                   Theo {filterType === 'day' ? 'ngày' : (filterType === 'month' ? 'tháng' : 'năm')}
                 </div>
               </Card>
             </Col>

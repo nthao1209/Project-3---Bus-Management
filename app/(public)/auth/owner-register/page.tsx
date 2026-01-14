@@ -22,7 +22,7 @@ export default function OwnerRegisterPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Đăng ký thất bại');
 
-      message.success('Đăng ký nhà xe thành công!');
+      message.success('Đăng ký nhà xe thành công! Tài khoản đang chờ phê duyệt.');
       setOpenCompanyModal(false);
       router.push('/auth/login');
     } catch (err: any) {

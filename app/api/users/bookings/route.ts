@@ -9,7 +9,6 @@ export async function POST(req: Request) {
     const session = await getCurrentUser();
 
     const body = await req.json();
-    // Debug log để xem body gửi lên có đúng không
     console.log("Booking Request Body:", body);
 
     const {
