@@ -38,6 +38,11 @@ const StationSchema = new Schema<Station>({
 
 }, { timestamps: true });
 
+StationSchema.index(
+  { name: 1, province: 1, type: 1 },
+  { unique: true }
+);
+
 
 
 export interface User {
@@ -55,18 +60,41 @@ export interface User {
 
 const UserSchema = new Schema<User>({
   name: { type: String, required: true },
-  email: { type: String, required: true, unique: true, index: true },
+
+  email: { 
+    type: String, 
+    required: true, 
+    unique: true, 
+    index: true 
+  },
+
   password: { type: String, required: true },
-  phone: { type: String, required: true },
+
+  phone: { 
+    type: String, 
+    required: true, 
+    unique: true,       
+    index: true 
+  },
+
   role: { 
     type: String, 
     enum: ['user', 'driver', 'owner', 'admin'], 
     default: 'user' 
   },
+
   driverLicense: { type: String },
+
   isActive: { type: Boolean, default: true },
-  companyId: { type: Schema.Types.ObjectId, ref: 'Company' },
+
+  companyId: { 
+    type: Schema.Types.ObjectId, 
+    ref: 'Company',
+    index: true
+  },
+
 }, { timestamps: true });
+
 
 
 export interface Company {
@@ -82,18 +110,42 @@ export interface Company {
 }
 
 const CompanySchema = new Schema<Company>({
-  ownerId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-  name: { type: String, required: true },
+  ownerId: { 
+    type: Schema.Types.ObjectId, 
+    ref: 'User', 
+    required: true,
+    unique: true,     
+    index: true
+  },
+
+  name: { 
+    type: String, 
+    required: true,
+    unique: true,     
+    index: true
+  },
+
   description: { type: String },
+
   hotline: { type: String, required: true },
-  email: { type: String },
+
+  email: { 
+    type: String, 
+    unique: true,     
+    sparse: true,
+    index: true
+  },
+
   address: { type: String },
+
   status: { 
     type: String, 
     enum: ['active', 'inactive', 'pending'], 
     default: 'pending' 
   }
+
 }, { timestamps: true });
+
 
 
 interface SeatLayout {
@@ -125,6 +177,9 @@ const BusSchema = new Schema<Bus>({
   amenities: [String],
   status: { type: String, enum: ['active', 'maintenance'], default: 'active' }
 }, { timestamps: true });
+
+BusSchema.index({ plateNumber: 1 }, { unique: true });
+
 
 interface RoutePoint {
   name: string;
@@ -391,7 +446,11 @@ const BookingSchema = new Schema<Booking>({
   paymentExpireAt: { type: Date },
   note: String
 }, { timestamps: true });
-
+// Ngăn 1 ghế bị đặt 2 lần trong cùng 1 chuyến
+BookingSchema.index(
+  { tripId: 1, seatCodes: 1 },
+  { unique: true }
+);
 
 export interface Payment {
   bookingId: Types.ObjectId;
