@@ -268,7 +268,7 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
           onChange={(val: any) => setFilter(val)}
           options={[
             { label: `Tất cả (${bookings.length})`, value: 'all' },
-            { label: 'Chưa TT', value: 'pending' },
+            { label: 'Chưa TT', value: 'pending_payment' },
             { label: 'Đã TT', value: 'paid' },
           ]}
         />
@@ -292,8 +292,8 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
                     </a>
                   </div>
                 </div>
-                <Tag color={item.status === 'confirmed'||'boarded' ? 'green' : 'orange'}>
-                   {item.status === 'confirmed'||'boarded' ? 'Đã TT' : 'Chưa TT'}
+                <Tag color={['confirmed', 'boarded'].includes(item.status) ? 'green' : 'orange'}>
+                  {['confirmed', 'boarded'].includes(item.status) ? 'Đã TT' : 'Chưa TT'}
                 </Tag>
               </div>
 
