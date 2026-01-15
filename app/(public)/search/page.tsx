@@ -111,7 +111,7 @@ function SearchContent() {
   const filteredTrips = useMemo(() => {
       let result = [...trips];
 
-      // ✅ 1. Lọc theo thời gian hiện tại + 30 phút nếu là hôm nay
+      //  1. Lọc theo thời gian hiện tại + 30 phút nếu là hôm nay
       const isToday = date === new Date().toISOString().split('T')[0];
 
       if (isToday) {
@@ -137,20 +137,20 @@ function SearchContent() {
         });
       }
 
-      // ✅ 2. Lọc theo hãng xe
+      //  2. Lọc theo hãng xe
       if (filters.selectedOperators.length > 0) {
         result = result.filter(t =>
           filters.selectedOperators.includes(t.companyName)
         );
       }
 
-      // ✅ 3. Lọc theo giá
+      //  3. Lọc theo giá
       result = result.filter(
         t => t.basePrice >= filters.priceRange[0] &&
             t.basePrice <= filters.priceRange[1]
       );
 
-      // ✅ 4. Lọc theo khung giờ
+      // 4. Lọc theo khung giờ
       if (filters.timeRanges.length > 0) {
         result = result.filter(t => {
           const hour = new Date(t.departureTime).getHours();
@@ -161,7 +161,7 @@ function SearchContent() {
         });
       }
 
-      // ✅ 5. Sort
+      //  5. Sort
       switch (filters.sortBy) {
         case 'price_asc':
           result.sort((a, b) => a.basePrice - b.basePrice);

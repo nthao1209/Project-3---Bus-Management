@@ -23,11 +23,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const now = new Date();
     const expireAt = new Date(Date.now() + HOLD_TIMEOUT);
 
-    // Helper to identify holder value stored in seatsStatus.socketId for API-held seats
     const holderId = `user:${session.userId}`;
 
     if (action === 'release') {
-      // Release only if held by this user
       const result = await Trip.updateOne(
         {
           _id: new mongoose.Types.ObjectId(tripId),
@@ -47,7 +45,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ success: false, message: 'Không thể nhả ghế' }, { status: 400 });
     }
 
-    // For hold/toggle: try to hold atomically (respect expired holds)
     const holdResult = await Trip.updateOne(
       {
         _id: new mongoose.Types.ObjectId(tripId),

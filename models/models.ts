@@ -6,10 +6,6 @@ export interface Station {
   address: string;
   province: string;
   type: 'bus_station' | 'rest_stop' | 'office';
-  coords?: {
-    lat: number;
-    lng: number;
-  };
   status?: 'pending' | 'active' | 'rejected';
   creatorId?: Types.ObjectId;
   createdAt?: Date;
@@ -24,10 +20,6 @@ const StationSchema = new Schema<Station>({
     type: String, 
     enum: ['bus_station', 'rest_stop', 'office'], 
     default: 'bus_station' 
-  },
-  coords: {
-    lat: Number,
-    lng: Number
   },
   status: { 
     type: String, 
@@ -234,8 +226,6 @@ export interface Trip {
   routeId: Types.ObjectId;
   busId: Types.ObjectId;
   driverId?: Types.ObjectId;
-  assistantId?: Types.ObjectId;
-
   departureTime: Date;
   arrivalTime: Date;
   basePrice: number;
@@ -289,7 +279,6 @@ const TripSchema = new Schema<Trip>({
   busId: { type: Schema.Types.ObjectId, ref: 'Bus', required: true },
 
   driverId: { type: Schema.Types.ObjectId, ref: 'User' },
-  assistantId: { type: Schema.Types.ObjectId, ref: 'User' },
 
   departureTime: { type: Date, required: true, index: true },
   arrivalTime: { type: Date, required: true },
