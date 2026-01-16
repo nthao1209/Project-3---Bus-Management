@@ -77,10 +77,10 @@ export default function MyTicketsPage() {
     if (tickets.length === 0) return;
 
     // Khởi tạo socket
-    const socketInstance = io({ path: '/socket.io' });
+    const socketOrigin = process.env.NEXT_PUBLIC_SOCKET_ORIGIN ?? 'https://project-3-bus-management-production.up.railway.app';
+    const socketInstance = io(socketOrigin, { path: '/socket.io', transports: ['websocket'], reconnectionAttempts: 5 });
 
     socketInstance.on('connect', () => {
-      console.log('User connected to socket for tracking tickets');
       
       // Lấy danh sách các Trip ID từ vé của user
       // (Để user join vào các chuyến xe mình có vé, từ đó nghe được sự kiện từ tài xế)
@@ -94,7 +94,6 @@ export default function MyTicketsPage() {
 
     // 1. Lắng nghe cập nhật trạng thái Vé (Khi Tài xế bấm Thu tiền / Đã đón)
     socketInstance.on('booking_updated', (data: any) => {
-      console.log('⚡ Booking updated:', data);
       
       setTickets(prevTickets => prevTickets.map(ticket => {
         // Chỉ cập nhật đúng vé có ID tương ứng
@@ -110,7 +109,6 @@ export default function MyTicketsPage() {
 
     // 2. Lắng nghe cập nhật trạng thái Chuyến đi (Khi Tài xế bấm Hoàn thành)
     socketInstance.on('trip_status_updated', (data: any) => {
-      console.log('Trip updated:', data);
 
       setTickets(prevTickets => prevTickets.map(ticket => {
         if (ticket.tripId._id === data.tripId) {

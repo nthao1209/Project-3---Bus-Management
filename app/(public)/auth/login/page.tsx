@@ -29,6 +29,11 @@ export default function LoginPage() {
 
       message.success('Đăng nhập thành công!');
       window.dispatchEvent(new Event('authChanged'));
+      try {
+        router.refresh();
+      } catch (e) {
+        // ignore
+      }
       localStorage.setItem('user_info', JSON.stringify(data.user));
 
       switch (data.user.role) {

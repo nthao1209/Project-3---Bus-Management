@@ -42,8 +42,17 @@ export default function HeroSearch({ isCompact = false }: { isCompact?: boolean 
       setLoadingData(true);
       try {
         const res = await fetch('/api/owner/stations?status=active'); 
+        const contentType = res.headers.get('content-type') || '';
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          throw new Error(`Failed to load provinces (status ${res.status}): ${text}`);
+        }
+        if (!contentType.includes('application/json')) {
+          const text = await res.text().catch(() => '');
+          throw new Error('Expected JSON response but received: ' + (text || '[non-JSON response]'));
+        }
         const data = await res.json();
-        
+
         if (data.success && Array.isArray(data.data)) {
           const uniqueProvinces = Array.from(new Set(data.data.map((station: any) => station.province)));
           const options = uniqueProvinces
@@ -53,6 +62,8 @@ export default function HeroSearch({ isCompact = false }: { isCompact?: boolean 
         }
       } catch (error) {
         console.error("Lỗi lấy dữ liệu tỉnh thành:", error);
+        // Keep UX quiet: provinces are optional for search; show a gentle toast
+        try { message.error('Không tải được danh sách tỉnh thành.'); } catch (e) {}
       } finally {
         setLoadingData(false);
       }
@@ -102,7 +113,7 @@ export default function HeroSearch({ isCompact = false }: { isCompact?: boolean 
     : "absolute top-[60px] md:top-[160px] left-1/2 transform -translate-x-1/2 w-[95%] max-w-6xl z-20"; // Adjusted top for mobile
 
   const wrapperClasses = isCompact
-    ? "container mx-auto"
+    ? "w-full px-3 sm:px-4"
     : "bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden";
 
   return (
@@ -128,7 +139,7 @@ export default function HeroSearch({ isCompact = false }: { isCompact?: boolean 
                    </div>
                 )}
 
-                <div className={`p-3 md:p-5 flex flex-col ${isCompact ? 'lg:flex-row items-end' : 'lg:flex-row'} gap-3 md:gap-4`}>
+                <div className={`p-3 sm:p-4 flex flex-col gap-3 md:gap-4 ${isCompact ? '' : 'lg:flex-row'}`}>
                     
                     {/* AREA 1: LOCATION (Nơi đi & Nơi đến) */}
                     {/* Trên mobile: xếp chồng dọc, dính liền border. Trên desktop: ngang, dính liền border */}
@@ -136,10 +147,10 @@ export default function HeroSearch({ isCompact = false }: { isCompact?: boolean 
                         
                         {/* Nơi đi */}
                         <div className="
-                            border border-gray-300 
-                            rounded-t-lg md:rounded-l-lg md:rounded-tr-none md:rounded-br-none
-                            border-b-0 md:border-b md:border-r-0
-                            p-2 hover:border-blue-500 hover:z-10 transition bg-white h-[60px] md:h-[70px] flex flex-col justify-center relative flex-1
+                          border border-gray-300 
+                          rounded-t-lg md:rounded-l-lg md:rounded-tr-none md:rounded-br-none
+                          border-b-0 md:border-b md:border-r-0
+                          p-2 hover:border-blue-500 hover:z-10 transition bg-white h-[50px] md:h-[70px] flex flex-col justify-center relative flex-1
                         ">
                             <span className="text-[10px] md:text-xs text-gray-500 font-medium ml-3">Nơi xuất phát</span>
                             <Select
@@ -171,9 +182,9 @@ export default function HeroSearch({ isCompact = false }: { isCompact?: boolean 
 
                         {/* Nơi đến */}
                         <div className="
-                            border border-gray-300 
-                            rounded-b-lg md:rounded-r-lg md:rounded-bl-none md:rounded-tl-none
-                            p-2 hover:border-blue-500 hover:z-10 transition bg-white h-[60px] md:h-[70px] flex flex-col justify-center relative flex-1
+                          border border-gray-300 
+                          rounded-b-lg md:rounded-r-lg md:rounded-bl-none md:rounded-tl-none
+                          p-2 hover:border-blue-500 hover:z-10 transition bg-white h-[50px] md:h-[70px] flex flex-col justify-center relative flex-1
                         ">
                             <span className="text-[10px] md:text-xs text-gray-500 font-medium ml-3">Nơi đến</span>
                             <Select
@@ -192,7 +203,7 @@ export default function HeroSearch({ isCompact = false }: { isCompact?: boolean 
                     </div>
 
                     {/* AREA 2: DATE & BUTTON */}
-                    <div className="flex-1 grid grid-cols-2 lg:grid-cols-[1.2fr_1.2fr_1fr] gap-3 md:gap-4">
+                    <div className={`${isCompact ? 'flex flex-col gap-2' : 'flex-1 grid grid-cols-2 lg:grid-cols-[1.2fr_1.2fr_1fr] gap-3 md:gap-4'}`}>
                         
                         {/* Ngày đi */}
                         <div className="col-span-1 border border-gray-300 rounded-lg p-2 hover:border-blue-500 transition bg-white h-[60px] md:h-[70px] flex flex-col justify-center">
@@ -244,10 +255,10 @@ export default function HeroSearch({ isCompact = false }: { isCompact?: boolean 
                             )}
                         </div>
 
-                        <div className="col-span-2 lg:col-span-1 h-[50px] md:h-[70px] flex items-center mt-1 lg:mt-0">
-                            <Button type="primary" block size="large" onClick={handleSearch} className="h-full !rounded-lg text-base md:text-lg font-bold shadow-md uppercase tracking-wide">
-                                Tìm kiếm
-                            </Button>
+                        <div className={`${isCompact ? 'w-full' : 'col-span-2 lg:col-span-1'} h-[50px] md:h-[70px] flex items-center mt-1 lg:mt-0`}> 
+                          <Button type="primary" block size="large" onClick={handleSearch} className="h-full !rounded-lg text-base md:text-lg font-bold shadow-md uppercase tracking-wide">
+                            Tìm kiếm
+                          </Button>
                         </div>
                     </div>
                 </div>

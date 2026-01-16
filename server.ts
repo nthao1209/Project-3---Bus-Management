@@ -2,34 +2,75 @@ import { createServer } from 'http';
 import { parse } from 'url';
 import next from 'next';
 import { Server, Socket } from 'socket.io';
+import os from 'os';
 import 'dotenv/config';
-import { dbConnect } from './lib/dbConnect.ts';
-import { Trip, Settings, Booking } from './models/models.ts';
-import { validateEnvOrExit } from './lib/validateEnv.ts';
+import { dbConnect } from './lib/dbConnect.js';
+import { Trip, Settings, Booking } from './models/models.js';
+import { validateEnvOrExit } from './lib/validateEnv.js';
 import * as cron from 'node-cron';
 
 validateEnvOrExit();
 
 const dev = process.env.NODE_ENV !== 'production';
-const app = next({ dev });
+const app = (next as any)({ dev });
 const handle = app.getRequestHandler();
+
+let serverInstance: ReturnType<typeof createServer> | null = null;
+
+export const initSocketServer = (srv?: ReturnType<typeof createServer>) => {
+  if ((global as any).io) {
+    console.log('Reusing existing Socket.IO instance');
+    return (global as any).io as Server;
+  }
+
+  const serverToUse = srv || serverInstance;
+  if (!serverToUse) {
+    throw new Error('No HTTP server available to attach Socket.IO');
+  }
+
+  const defaultProdOrigin = 'https://project-3-bus-management-production.up.railway.app';
+  const socketOrigin = process.env.SOCKET_ORIGIN || process.env.NEXT_PUBLIC_SOCKET_ORIGIN || (dev ? '*' : defaultProdOrigin);
+  const corsOptions = { origin: socketOrigin, methods: ['GET', 'POST'], credentials: true };
+
+  const ioInstance = new Server(serverToUse, {
+    path: '/socket.io',
+    transports: ['websocket', 'polling'],
+    cors: corsOptions,
+  });
+
+  (global as any).io = ioInstance;
+  console.log('Socket.IO instance initialized and set to global');
+
+  return ioInstance;
+};
+
+export const getIo = () => (global as any).io as Server | undefined;
 
 const HOLD_TIMEOUT = 5 * 60 * 1000; 
 
 app.prepare().then(() => {
   const server = createServer((req, res) => {
     const parsedUrl = parse(req.url!, true);
+
+    // Lightweight health endpoint to check server + socket readiness
+    try {
+      const pathname = parsedUrl.pathname || '';
+      if (pathname === '/health' || pathname === '/api/health') {
+        const ioReady = !!(global as any).io;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ ok: true, socketReady: ioReady, time: new Date().toISOString() }));
+        return;
+      }
+    } catch (e) {
+      // ignore and continue to Next handler
+    }
+
     handle(req, res, parsedUrl);
   });
 
-  const io = new Server(server, {
-    cors: {
-      origin: '*',
-    },
-  });
+  serverInstance = server;
 
-  (global as any).io = io;
-  console.log('Socket.IO instance set to global');
+  const io = initSocketServer(server);
 
   
   const getSeatData = (trip: any, seatCode: string) => {
@@ -408,7 +449,30 @@ app.prepare().then(() => {
     });
   });
   
-  server.listen(3000, () => {
-    console.log('Server ready at http://localhost:3000');
+  const PORT = Number(process.env.PORT) || 3000;
+  server.listen(PORT, '0.0.0.0', () => {
+    const displayHost = process.env.NEXT_PUBLIC_HOSTNAME || 'localhost';
+    console.log(`Server ready at http://${displayHost}:${PORT} (bind: 0.0.0.0:${PORT})`);
+
+    // Also log local LAN IPs for convenience
+    try {
+      const nets = os.networkInterfaces();
+      const ips: string[] = [];
+      Object.values(nets).forEach(ifaces => {
+        if (!ifaces) return;
+        ifaces.forEach(iface => {
+          if (iface.family === 'IPv4' && !iface.internal) {
+            ips.push(iface.address!);
+          }
+        });
+      });
+      if (ips.length) {
+        ips.forEach(ip => console.log(`Accessible on LAN: http://${ip}:${PORT}`));
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    // Client socket origin is configured via NEXT_PUBLIC_SOCKET_ORIGIN / SOCKET_ORIGIN
   });
 });

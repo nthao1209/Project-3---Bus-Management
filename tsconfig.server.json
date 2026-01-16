@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist",
+    "rootDir": ".",
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "strict": true,
+    "noEmitOnError": false,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowJs": true,
+    "isolatedModules": false
+  },
+  "include": [
+    "server.ts",
+    "lib/**/*.ts",
+    "models/**/*.ts",
+    "scripts/**/*.ts",
+    "types/**/*.d.ts"
+  ]
+}

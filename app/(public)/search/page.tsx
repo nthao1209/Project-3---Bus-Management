@@ -183,12 +183,12 @@ function SearchContent() {
     }, [trips, filters, date]);
 
   return (
-    <div className="container mx-auto px-4 pb-10">
+    <div className="container mx-auto px-3 sm:px-4 pb-10">
       <p className="text-gray-500 mt-2">
         Chỉ hiển thị các chuyến khởi hành sau {new Date(Date.now() + 30*60000).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
       </p>
 
-      <div className="lg:hidden flex justify-between items-center py-4 border-b border-gray-200 mb-4 sticky top-[154px] z-30 bg-[#F2F2F2]">
+      <div className="lg:hidden flex justify-between items-center py-4 border-b border-gray-200 mb-4 sticky top-[80px] lg:top-[154px] z-30 bg-[#F2F2F2]">
           <div>
              <span className="text-gray-600 text-sm">Tìm thấy </span>
              <span className="font-bold text-blue-600 text-lg">{trips.length}</span>

@@ -30,12 +30,11 @@ export default function TripCard({ trip }: TripCardProps) {
 const durationText = `${Math.floor(durationMinutes / 60)}h${durationMinutes % 60}m`;
 
   return (
-    <div className="bg-white rounded-xl border shadow-sm mb-4 px-6 py-4 hover:shadow-md transition">
-      
-      <div className="flex items-center justify-between gap-6">
+    <div className="bg-white rounded-xl border shadow-sm mb-4 px-4 py-4 hover:shadow-md transition">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         
         {/* CỘT TRÁI */}
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           <h3 className="text-lg font-bold text-gray-800">
             {trip.companyName}
           </h3>
@@ -68,7 +67,7 @@ const durationText = `${Math.floor(durationMinutes / 60)}h${durationMinutes % 60
         </div>
 
         {/* CỘT PHẢI */}
-        <div className="text-right min-w-[180px]">
+        <div className="text-right w-full sm:w-44">
        
 
           <div className="text-xl font-bold text-blue-600">
