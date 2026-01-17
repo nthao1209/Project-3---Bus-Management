@@ -1,6 +1,7 @@
   'use client';
 
   import React, { useEffect, useState, useRef } from 'react';
+  import type { Socket } from 'socket.io-client';
   import {
     Button,
     Dropdown,

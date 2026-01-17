@@ -1,5 +1,5 @@
+"use client";
 import type { Socket } from 'socket.io-client';
-'use client';
 
 import { useState, useEffect, use, useRef } from 'react';
 import { Spin, message, Row, Col, Button, Drawer } from 'antd';

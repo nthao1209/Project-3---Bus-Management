@@ -1,4 +1,5 @@
-'use client';
+"use client";
+import type { Socket } from 'socket.io-client';
 
 import React, { useState, useEffect, useRef } from 'react';
 import { 

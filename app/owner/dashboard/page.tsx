@@ -18,6 +18,7 @@ import { createSocket } from '@/lib/socketClient';
 import dayjs from 'dayjs';
 
 const { useBreakpoint } = Grid;
+import type { Socket } from 'socket.io-client';
 
 export default function OwnerDashboard() {
   const screens = useBreakpoint(); // Hook kiểm tra kích thước màn hình

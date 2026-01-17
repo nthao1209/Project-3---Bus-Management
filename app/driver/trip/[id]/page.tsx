@@ -1,5 +1,6 @@
-'use client';
- 
+"use client";
+import type { Socket } from 'socket.io-client';
+
 import React, { useEffect, useState, use } from 'react';
 import {
   Button, Card, List, Tag, message, Popconfirm, Segmented, Spin, Alert
