@@ -80,7 +80,7 @@ export default function ProfilePage() {
     if (emailChanged) {
       message.success('Cập nhật email thành công. Vui lòng đăng nhập lại');
 
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
       window.dispatchEvent(new Event('authChanged'));
       localStorage.removeItem('user_info');
 
@@ -117,7 +117,7 @@ export default function ProfilePage() {
 
     message.success('Đổi mật khẩu thành công. Vui lòng đăng nhập lại');
 
-    await fetch('/api/auth/logout', { method: 'POST' });
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
     window.dispatchEvent(new Event('authChanged'));
     localStorage.removeItem('user_info');
 

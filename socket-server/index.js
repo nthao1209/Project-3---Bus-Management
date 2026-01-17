@@ -141,6 +141,40 @@ io.on('connection', (socket) => {
     } catch (err) { console.error('booking_updated error', err); }
   });
 
+  // Allow driver to start trip only within START_WINDOW_MS before departure
+  socket.on('start_trip', async ({ tripId }) => {
+    try {
+      await dbConnect();
+      const trip = await Trip.findById(tripId).populate('companyId');
+      if (!trip) { socket.emit('error_message', 'Chuyến đi không tồn tại'); return; }
+
+      const START_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+      const now = new Date();
+      const departure = new Date(trip.departureTime);
+      const allowedStartTime = new Date(departure.getTime() - START_WINDOW_MS);
+
+      if (now < allowedStartTime) {
+        socket.emit('error_message', 'Chỉ có thể bắt đầu chạy trong vòng 5 phút trước giờ khởi hành.');
+        return;
+      }
+
+      // Mark trip as started if not already
+      const prevStatus = trip.status;
+      trip.status = 'in_progress';
+      trip.actualStartTime = now;
+      await trip.save();
+
+      const payload = { tripId: trip._id.toString(), status: trip.status, actualStartTime: now };
+      io.to(tripId).emit('trip_started', payload);
+      const companyId = trip.companyId?._id || trip.companyId;
+      if (companyId) io.to(`company_${companyId}`).emit('trip_started', payload);
+      socket.emit('start_confirmed', { tripId: trip._id.toString(), prevStatus, newStatus: trip.status });
+    } catch (err) {
+      console.error('start_trip error', err);
+      socket.emit('error_message', 'Lỗi khi bắt đầu chuyến đi');
+    }
+  });
+
   socket.on('hold_seat', async ({ tripId, seatCode }) => {
     try {
       await dbConnect();

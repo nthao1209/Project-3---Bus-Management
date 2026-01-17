@@ -68,6 +68,7 @@
     const [user, setUser] = useState<UserInfo | null>(null);
     const [notifications, setNotifications] = useState<any[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
+      const [isLoggingOut, setIsLoggingOut] = useState(false);
     const socketRef = useRef<Socket | null>(null);
 
     const currentUI = user ? roleUI[user.role] : null;
@@ -213,14 +214,22 @@
       }
     };
     const handleLogout = async () => {
+      if (isLoggingOut) return;
+      setIsLoggingOut(true);
       try {
-        await fetch('/api/auth/logout', { method: 'POST' });
+        const res = await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+        if (!res.ok) throw new Error('Logout failed');
         setUser(null);
         window.dispatchEvent(new Event('authChanged'));
         message.success('Đã đăng xuất');
+        // navigate to login and refresh to update server components
         router.push('/auth/login');
-      } catch {
+        try { router.refresh(); } catch (e) {}
+      } catch (err) {
+        console.error('logout error', err);
         message.error('Đăng xuất thất bại');
+      } finally {
+        setIsLoggingOut(false);
       }
     };
 
@@ -252,7 +261,16 @@
 
     {
       key: 'logout',
-      label: <span onClick={handleLogout}>Đăng xuất</span>,
+      label: (
+        <button
+          onClick={handleLogout}
+          disabled={isLoggingOut}
+          className="w-full text-left bg-transparent border-0 p-0"
+          style={{ color: isLoggingOut ? 'gray' : undefined }}
+        >
+          Đăng xuất
+        </button>
+      ),
       icon: <LogoutOutlined />,
       danger: true,
     },
