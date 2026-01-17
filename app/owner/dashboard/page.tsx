@@ -36,9 +36,9 @@ export default function OwnerDashboard() {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await fetch('/api/auth/me');
+        const res = await fetch('/api/auth/me', { credentials: 'include' });
         const json = await res.json();
-        if (json.success) {
+        if (json?.user) {
           setCurrentUser(json.user);
         }
       } catch (error) {
@@ -52,7 +52,8 @@ export default function OwnerDashboard() {
   useEffect(() => {
     if (!currentUser) return;
 
-    const socketInstance = io({ path: '/socket.io' });
+    const socketOrigin = process.env.NEXT_PUBLIC_SOCKET_ORIGIN ?? 'https://project-3-bus-management-production.up.railway.app';
+    const socketInstance = io(socketOrigin, { path: '/socket.io', transports: ['websocket'], reconnectionAttempts: 5 });
 
     socketInstance.on('connect', () => {
       console.log('Socket joined user room:', currentUser._id);
@@ -127,18 +128,15 @@ export default function OwnerDashboard() {
 
   // 4. Socket: Lắng nghe Booking mới / Cập nhật Dashboard
   useEffect(() => {
-    const socketInstance = io({
-      path: '/socket.io',
-    });
+    const socketOrigin = process.env.NEXT_PUBLIC_SOCKET_ORIGIN ?? 'https://project-3-bus-management-production.up.railway.app';
+    const socketInstance = io(socketOrigin, { path: '/socket.io', transports: ['websocket'], reconnectionAttempts: 5 });
 
     socketInstance.on('connect', () => {
-      console.log('Dashboard connected to Socket.IO, ID:', socketInstance.id);
       if (!selectedCompany) return;
       socketInstance.emit('join_company_dashboard', selectedCompany);
     });
 
     socketInstance.on('new_booking', (eventData: any) => {
-      console.log('New booking received:', eventData);
       
       if (!selectedCompany || eventData.companyId === selectedCompany) {
         message.success({

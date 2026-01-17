@@ -4,9 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "ts-node server.ts",
-    "build": "next build",
-    "start": "next start",
+    "dev:server:build": "tsc -p tsconfig.server.json",
+    "dev:server:start": "node dist/server.js",
+    "dev": "npm run dev:server:build && npm run dev:server:start",
+    "dev:full": "concurrently -k \"cross-env NEXT_PUBLIC_SOCKET_ORIGIN=http://localhost:4000 next dev\" \"npm:dev:server:start\"",
+    "build": "next build && tsc -p tsconfig.server.json",
+    "postinstall": "tsc -p tsconfig.server.json || true",
+    "start": "node dist/server.js",
     "lint": "eslint"
   },
   "dependencies": {
@@ -36,6 +40,8 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "autoprefixer": "^10.4.22",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
     "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "16.0.6",

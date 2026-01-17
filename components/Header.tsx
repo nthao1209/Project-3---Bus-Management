@@ -68,6 +68,7 @@
     const [notifications, setNotifications] = useState<any[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const socketRef = useRef<Socket | null>(null);
+    const [showMobileMenu, setShowMobileMenu] = useState(false);
 
     const currentUI = user ? roleUI[user.role] : null;
     const showNotification =
@@ -117,27 +118,27 @@
 
     useEffect(() => {
       if (user) {
-        console.log('[NOTIFICATION] User logged in, setting up notifications for userId:', user.userId);
+        
         fetchNotifications();
         const interval = setInterval(fetchNotifications, 30000);
         try {
-          console.log('[SOCKET] Connecting to Socket.IO...');
-          const s = ioClient({ path: '/socket.io' });
+          const socketOrigin = process.env.NEXT_PUBLIC_SOCKET_ORIGIN ?? 'https://project-3-bus-management-production.up.railway.app';
+          const s = ioClient(socketOrigin, { path: '/socket.io', transports: ['websocket'], reconnectionAttempts: 5 });
           socketRef.current = s as Socket;
           s.on('connect', () => {
-            console.log('[SOCKET] Connected! Socket ID:', s.id);
+            
             try {
-              console.log('[SOCKET] Joining user room:', user.userId);
+              
               s.emit('join_user', user.userId);
             } catch (err) { console.error('[SOCKET] join_user emit error:', err); }
           });
 
           s.on('joined_user', (data: any) => {
-            console.log('[SOCKET] Successfully joined user room:', data);
+            
           });
 
           s.on('notification', (notif: any) => {
-            console.log('[SOCKET] Received notification:', notif);
+            
             try {
               setNotifications(prev => [notif, ...(prev || [])]);
               setUnreadCount(prev => prev + 1);
@@ -145,7 +146,7 @@
             } catch (err) { console.error('[SOCKET] notification handler error:', err); }
           });
           s.on('receive_notification', (notif: any) => {
-            console.log('[SOCKET] Received admin notification:', notif);
+            
             try {
               setNotifications(prev => [notif, ...(prev || [])]);
               setUnreadCount(prev => prev + 1);
@@ -164,7 +165,7 @@
           });
 
           s.on('disconnect', () => {
-            console.log('[SOCKET] Disconnected');
+            
           });
 
           s.on('connect_error', (err: any) => {
@@ -176,7 +177,6 @@
         return () => {
           clearInterval(interval);
           if (socketRef.current) {
-            console.log('[SOCKET] Cleaning up socket connection');
             try { socketRef.current.disconnect(); } catch (e) {}
             socketRef.current = null;
           }
@@ -187,7 +187,6 @@
     useEffect(() => {
       return () => {
         if (socketRef.current) {
-          console.log('[SOCKET] Component unmount cleanup');
           try { socketRef.current.disconnect(); } catch (e) {}
           socketRef.current = null;
         }
@@ -213,13 +212,27 @@
     };
     const handleLogout = async () => {
       try {
-        await fetch('/api/auth/logout', { method: 'POST' });
+        // Attempt server logout (best-effort)
+        await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+      } finally {
+        // Immediate client-side cleanup to ensure UI resets
+        try { localStorage.removeItem('user_info'); } catch (e) {}
+        if (socketRef.current) {
+          try { socketRef.current.disconnect(); } catch (e) {}
+          socketRef.current = null;
+        }
+        setNotifications([]);
+        setUnreadCount(0);
         setUser(null);
-        window.dispatchEvent(new Event('authChanged'));
+        // Notify other listeners
+        try { window.dispatchEvent(new Event('authChanged')); } catch (e) {}
         message.success('Đã đăng xuất');
-        router.push('/auth/login');
-      } catch {
-        message.error('Đăng xuất thất bại');
+        // Navigate to login and force a full reload to reset any lingering sockets/components
+        if (typeof window !== 'undefined') {
+          window.location.href = '/auth/login';
+        } else {
+          router.push('/auth/login');
+        }
       }
     };
 
@@ -316,36 +329,42 @@
 
     return (
       <header className="w-full bg-[#2474E5] text-white sticky top-0 z-50 shadow-md">
-        <div className="container mx-auto px-4 h-[60px] flex items-center justify-between">
-          <Link href="/">
-            <Image src="/Logo.png" alt="Logo" height={42} preview={false} />
-          </Link>
+        <div className="container mx-auto px-4 h-[60px] flex items-center justify-between flex-wrap">
+          <div className="flex items-center gap-3">
+            <Link href="/">
+              <Image src="/Logo.png" alt="Logo" height={42} preview={false} />
+            </Link>
+          </div>
 
           <div className="flex items-center gap-4">
+            <Button
+              type="text"
+              className="sm:hidden !text-white"
+              icon={<MenuOutlined />}
+              onClick={() => setShowMobileMenu((v) => !v)}
+            />
 
-          {isUser && (
-            <Link href="/my-tickets">
-              <div
-                className="flex items-center gap-2 px-3 py-2 rounded-lg
-                          border border-white/40
-                          text-white
-                          hover:bg-white/10 hover:border-white
-                          cursor-pointer transition"
-              >
-                <HistoryOutlined />
-                <span className="text-sm font-medium hidden md:inline">
-                  Đơn hàng của tôi
-                </span>
-              </div>
-            </Link>
-          )}
+            <div className="hidden sm:flex items-center gap-4">
 
-            {showNotification && (
-                <Popover
-                  content={notificationMenu}
-                  trigger="click"
-                  placement="bottomRight"
-                >
+              {isUser && (
+                <Link href="/my-tickets">
+                  <div
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg
+                              border border-white/40
+                              text-white
+                              hover:bg-white/10 hover:border-white
+                              cursor-pointer transition"
+                  >
+                    <HistoryOutlined />
+                    <span className="text-sm font-medium hidden md:inline">
+                      Đơn hàng của tôi
+                    </span>
+                  </div>
+                </Link>
+              )}
+
+              {showNotification && (
+                <Popover content={notificationMenu} trigger="click" placement="bottomRight">
                   <Badge count={unreadCount} offset={[10, 0]}>
                     <Button
                       type="text"
@@ -357,20 +376,42 @@
                 </Popover>
               )}
 
-            {user ? (
-              <Dropdown menu={{ items: userMenu }} placement="bottomRight">
-                <Avatar className="bg-yellow-400 text-blue-700 font-bold cursor-pointer">
-                  {user.email?.charAt(0).toUpperCase() || user.name?.charAt(0).toUpperCase() || 'U'}
-                </Avatar>
-              </Dropdown>
-            ) : (
-              <Link href="/auth/login">
-                <Button className="!bg-white !text-[#2474E5] font-bold">
-                  Đăng nhập
-                </Button>
-              </Link>
-            )}
+              {user ? (
+                <Dropdown menu={{ items: userMenu }} placement="bottomRight">
+                  <Avatar className="bg-yellow-400 text-blue-700 font-bold cursor-pointer w-8 h-8">
+                    {user.email?.charAt(0).toUpperCase() || user.name?.charAt(0).toUpperCase() || 'U'}
+                  </Avatar>
+                </Dropdown>
+              ) : (
+                <Link href="/auth/login">
+                  <Button className="!bg-white !text-[#2474E5] font-bold">
+                    Đăng nhập
+                  </Button>
+                </Link>
+              )}
+            </div>
           </div>
+
+          {/* Mobile menu dropdown */}
+          {showMobileMenu && (
+            <div className="sm:hidden w-full bg-white text-black px-4 py-3">
+              <div className="flex flex-col gap-2">
+                <Link href="/" onClick={() => setShowMobileMenu(false)}>Trang chủ</Link>
+                {isUser && (
+                  <Link href="/my-tickets" onClick={() => setShowMobileMenu(false)}>Đơn hàng của tôi</Link>
+                )}
+                <Link href="/notifications" onClick={() => setShowMobileMenu(false)}>Thông báo</Link>
+                {user ? (
+                  <>
+                    <Link href="/auth/profile" onClick={() => setShowMobileMenu(false)}>Tài khoản</Link>
+                    <button onClick={() => { setShowMobileMenu(false); handleLogout(); }} className="text-left text-red-600">Đăng xuất</button>
+                  </>
+                ) : (
+                  <Link href="/auth/login" onClick={() => setShowMobileMenu(false)}>Đăng nhập</Link>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </header>
     );

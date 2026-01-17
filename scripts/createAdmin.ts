@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import { User } from '../models/models.ts';
+import { User } from '../models/models.js';
 
 async function createAdmin() {
   const {

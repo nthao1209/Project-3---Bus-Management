@@ -102,7 +102,13 @@ export async function DELETE() {
 
     // Xóa cookie token
     const cookieStore = await cookies();
-    cookieStore.delete('token');
+    if (typeof cookieStore.delete === 'function') {
+      cookieStore.delete('token');
+    } else {
+      return NextResponse.json({ success: true, message: 'Tài khoản đã bị vô hiệu hóa thành công' }, {
+        headers: { 'Set-Cookie': 'token=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict' }
+      });
+    }
 
     return NextResponse.json({ success: true, message: 'Tài khoản đã bị vô hiệu hóa thành công' });
 

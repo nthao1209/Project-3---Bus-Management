@@ -43,11 +43,11 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
   useEffect(() => {
     if(!tripId) return;
     
-    socketRef.current = io(); 
+    const socketOrigin = process.env.NEXT_PUBLIC_SOCKET_ORIGIN ?? 'https://project-3-bus-management-production.up.railway.app';
+    socketRef.current = io(socketOrigin, { path: '/socket.io', transports: ['websocket'], reconnectionAttempts: 5 });
     const socket = socketRef.current;
 
     socket.on('connect', () => {
-      console.log('Socket connected:', socket.id);
       socket.emit('join_trip', tripId);
     });
 

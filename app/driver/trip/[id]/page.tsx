@@ -72,17 +72,14 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
     fetchData();
 
     // 2. Khởi tạo Socket
-    const socketInstance = io({ path: '/socket.io' });
+    const socketOrigin = process.env.NEXT_PUBLIC_SOCKET_ORIGIN ?? 'https://project-3-bus-management-production.up.railway.app';
+    const socketInstance = io(socketOrigin, { path: '/socket.io', transports: ['websocket'], reconnectionAttempts: 5 });
 
     socketInstance.on('connect', () => {
-      console.log('Driver connected to socket');
-      // 3. Tham gia vào room của chuyến đi này
-     
       socketInstance.emit('join_trip', id);
     });
 
     const handleUpdate = (data: any) => {
-      console.log('Realtime update:', data);
       
       // OPTIMISTIC UPDATE: Cập nhật state ngay lập tức để giao diện phản hồi nhanh
       // (Phòng trường hợp fetchData bị chậm)
@@ -104,7 +101,6 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
     });
 
     socketInstance.on('booking_updated', (data) => {
-      console.log('Booking updated:', data);
       fetchData(true); // Load lại ngầm
     });
 
@@ -129,6 +125,15 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
     } catch (e) {
       message.error('Lỗi cập nhật');
     }
+  };
+
+  const handleComplete = async () => {
+    if (!tripInfo) return message.error('Không có thông tin chuyến');
+    const allowedAt = dayjs(tripInfo.departureTime).add(30, 'minute');
+    if (dayjs().isBefore(allowedAt)) {
+      return message.error(`Không thể hoàn thành trước ${allowedAt.format('HH:mm, DD/MM/YYYY')}`);
+    }
+    return updateTripStatus('completed');
   };
   
   // Hàm xử lý xác nhận khách lên xe
@@ -209,11 +214,13 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <div className="bg-white p-4 sticky top-0 z-10 shadow-sm">
-        <div className="flex items-center gap-3 mb-3">
-          <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/driver')} type="text" />
-          <h2 className="text-lg font-bold flex-1">
-             Hành khách {loading && <Spin indicator={<SyncOutlined spin />} size="small" />}
-          </h2>
+        <div className="flex flex-col sm:flex-row items-center gap-3 mb-3">
+          <div className="w-full flex items-center justify-between sm:justify-start gap-2">
+            <Button icon={<ArrowLeftOutlined />} onClick={() => router.push('/driver')} type="text" />
+            <h2 className="text-lg font-bold flex-1 text-center sm:text-left">
+               Hành khách {loading && <Spin indicator={<SyncOutlined spin />} size="small" />}
+            </h2>
+          </div>
         </div>
         {isLate && (
           <Alert
@@ -241,13 +248,13 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
           />
         )}
         
-        <div className="flex gap-2 mb-2">
+        <div className="flex flex-col sm:flex-row gap-2 mb-2">
            {tripInfo?.status === 'scheduled' && (
              <Popconfirm title="Bắt đầu chạy chuyến này?" onConfirm={() => updateTripStatus('running')}>
                <Button 
                  type="primary" 
                  block 
-                 className={`${isLate ? 'bg-red-600 hover:bg-red-500 animate-bounce' : 'bg-blue-600'}`}
+                 className={`w-full sm:w-auto ${isLate ? 'bg-red-600 hover:bg-red-500 animate-bounce' : 'bg-blue-600'}`}
                >
                  {isLate ? `BẮT ĐẦU CHẠY (TRỄ ${diffMinutes}P)` : 'Bắt đầu chạy'}
                </Button>
@@ -256,55 +263,57 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
            
            {/* Nút Hoàn thành */}
            {tripInfo?.status === 'running' && (
-             <Popconfirm title="Xác nhận hoàn thành chuyến?" onConfirm={() => updateTripStatus('completed')}>
-               <Button block danger>Hoàn thành chuyến</Button>
+             <Popconfirm title="Xác nhận hoàn thành chuyến?" onConfirm={() => handleComplete()}>
+               <Button block danger className="w-full sm:w-auto">Hoàn thành chuyến</Button>
              </Popconfirm>
            )}
         </div>
 
-        <Segmented
-          block
-          value={filter}
-          onChange={(val: any) => setFilter(val)}
-          options={[
-            { label: `Tất cả (${bookings.length})`, value: 'all' },
-            { label: 'Chưa TT', value: 'pending_payment' },
-            { label: 'Đã TT', value: 'paid' },
-          ]}
-        />
+        <div className="mb-2 overflow-x-auto">
+          <Segmented
+            block
+            value={filter}
+            onChange={(val: any) => setFilter(val)}
+            options={[
+              { label: `Tất cả (${bookings.length})`, value: 'all' },
+              { label: 'Chưa TT', value: 'pending_payment' },
+              { label: 'Đã TT', value: 'paid' },
+            ]}
+          />
+        </div>
       </div>
 
       <div className="p-4 flex-1 overflow-y-auto">
-        <List
+          <List
           loading={loading && bookings.length === 0} // Chỉ hiện loading to khi chưa có dữ liệu lần đầu
           dataSource={filteredBookings}
           renderItem={(item) => (
             <Card className="mb-3 shadow-sm border-0 rounded-lg overflow-hidden" bodyStyle={{ padding: '12px' }}>
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex gap-2">
-                  <div className="bg-blue-100 text-blue-700 font-bold px-2 py-1 rounded text-lg min-w-[50px] text-center">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-3">
+                <div className="flex gap-2 items-start">
+                  <div className="bg-blue-100 text-blue-700 font-bold px-2 py-1 rounded text-lg min-w-[40px] sm:min-w-[50px] text-center">
                     {item.seatCodes.join(',')}
                   </div>
-                  <div>
-                    <div className="font-bold text-gray-800 text-base">{item.customerInfo.name}</div>
-                    <a href={`tel:${item.customerInfo.phone}`} className="text-blue-600 flex items-center gap-1 text-sm font-medium mt-0.5">
+                  <div className="min-w-0">
+                    <div className="font-bold text-gray-800 text-base truncate">{item.customerInfo.name}</div>
+                    <a href={`tel:${item.customerInfo.phone}`} className="text-blue-600 flex items-center gap-1 text-sm font-medium mt-0.5 truncate">
                       <PhoneFilled /> {item.customerInfo.phone}
                     </a>
                   </div>
                 </div>
-                <Tag color={['confirmed', 'boarded'].includes(item.status) ? 'green' : 'orange'}>
+                <Tag className="self-start sm:self-auto" color={['confirmed', 'boarded'].includes(item.status) ? 'green' : 'orange'}>
                   {['confirmed', 'boarded'].includes(item.status) ? 'Đã TT' : 'Chưa TT'}
                 </Tag>
               </div>
 
               <div className="bg-gray-50 p-2 rounded text-xs text-gray-600 space-y-1 mb-3">
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                    <EnvironmentFilled className="text-green-600" /> 
-                   <span>Đón: <b>{dayjs(item.pickupPoint?.time).format('HH:mm')}</b> - {item.pickupPoint?.name}</span>
+                   <span className="truncate">Đón: <b>{dayjs(item.pickupPoint?.time).format('HH:mm')}</b> - {item.pickupPoint?.name}</span>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                    <EnvironmentFilled className="text-red-500" /> 
-                   <span>Trả: {item.dropoffPoint?.name}</span>
+                   <span className="truncate">Trả: {item.dropoffPoint?.name}</span>
                 </div>
                 {item.note && (
                   <div className="text-orange-600 italic border-t border-gray-200 pt-1 mt-1">
@@ -313,7 +322,7 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
                 )}
               </div>
 
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
                 <div className="font-bold text-lg text-gray-700">
                     {item.totalPrice.toLocaleString()} đ
                 </div>

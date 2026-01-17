@@ -18,6 +18,20 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const trip = await Trip.findOne({ _id: id, driverId: session.userId });
     if (!trip) return NextResponse.json({ message: 'Trip not found' }, { status: 404 });
 
+    // Enforce: driver can only mark trip as completed when current time
+    // is at least departureTime + 30 minutes
+    if (status === 'completed') {
+      const departure = trip.departureTime;
+      const now = new Date();
+      const allowedAt = new Date(departure.getTime() + 30 * 60 * 1000);
+      if (now < allowedAt) {
+        return NextResponse.json({
+          message: 'Không thể hoàn thành trước thời gian xuất phát +30 phút',
+          allowedAt: allowedAt.toISOString()
+        }, { status: 400 });
+      }
+    }
+
     trip.status = status;
     await trip.save();
 

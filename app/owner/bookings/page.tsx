@@ -66,7 +66,8 @@ export default function BookingManager() {
   });
   useEffect(() => {
     // Kết nối Socket chung
-    const socketInstance = io({ path: '/socket.io' });
+    const socketOrigin = process.env.NEXT_PUBLIC_SOCKET_ORIGIN ?? 'https://project-3-bus-management-production.up.railway.app';
+    const socketInstance = io(socketOrigin, { path: '/socket.io', transports: ['websocket'], reconnectionAttempts: 5 });
     setSocket(socketInstance);
 
     // Lấy danh sách nhà xe
@@ -162,12 +163,9 @@ export default function BookingManager() {
 
       if (!socket || !selectedTripId) return;
 
-      console.log(` Joining trip room: ${selectedTripId}`);
-      
       socket.emit('join_trip', selectedTripId);
 
       const handleBookingUpdate = (data: any) => {
-        console.log(' Booking update:', data);
         message.info('Dữ liệu chuyến xe vừa được cập nhật');
         fetchTripDetails();
       };
@@ -176,8 +174,6 @@ export default function BookingManager() {
       socket.on('new_booking', handleBookingUpdate);
 
       return () => {
-        console.log(` Leaving trip room: ${selectedTripId}`);
-
         socket.off('booking_updated', handleBookingUpdate);
         socket.off('new_booking', handleBookingUpdate);
       };
