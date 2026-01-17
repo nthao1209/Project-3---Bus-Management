@@ -7,13 +7,17 @@ export function createSocket(options = {}) {
     if (socketInstance && socketInstance.connected)
         return socketInstance;
     // Use current origin so the client connects back to the same host the app is served from.
-    const origin = `${window.location.protocol}//${window.location.host}`;
-    socketInstance = io(origin, {
+    const defaultSockets = {
         path: '/socket.io',
-        transports: ['websocket'],
+        transports: ['polling', 'websocket'],
         reconnectionAttempts: 5,
-        ...options,
-    });
+        reconnectionDelayMax: 5000,
+        autoConnect: true,
+        withCredentials: true,
+    };
+    const socks = { ...defaultSockets, ...options };
+    const origin = `${window.location.protocol}//${window.location.host}`;
+    socketInstance = io(origin, socks);
     return socketInstance;
 }
 export function getSocket() {
