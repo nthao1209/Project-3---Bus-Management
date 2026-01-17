@@ -22,8 +22,8 @@ export const initSocketServer = (srv) => {
     if (!serverToUse) {
         throw new Error('No HTTP server available to attach Socket.IO');
     }
-    const defaultProdOrigin = 'https://project-3-bus-management-production.up.railway.app';
-    const socketOrigin = process.env.SOCKET_ORIGIN || process.env.NEXT_PUBLIC_SOCKET_ORIGIN || (dev ? '*' : defaultProdOrigin);
+    const defaultProdOrigin = 'httpts://project-3-bus-management.vercel.app';
+    const socketOrigin = process.env.SOCKET_ORIGIN || process.env.SOCKET_ORIGIN || (dev ? '*' : defaultProdOrigin);
     const corsOptions = { origin: socketOrigin, methods: ['GET', 'POST'], credentials: true };
     const ioInstance = new Server(serverToUse, {
         path: '/socket.io',
@@ -404,6 +404,6 @@ app.prepare().then(() => {
         catch (e) {
             // ignore
         }
-        // Client socket origin is configured via NEXT_PUBLIC_SOCKET_ORIGIN / SOCKET_ORIGIN
+        // Client socket origin is configured via SOCKET_ORIGIN / SOCKET_ORIGIN
     });
 });

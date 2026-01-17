@@ -51,14 +51,25 @@ export async function GET(req: Request) {
       console.log("Amount:", amount);
 
       await dbConnect();
-      const payment = await Payment.findOne({ transactionId: orderId }).lean();
-      
+      let payment: any = await Payment.findOne({ transactionId: orderId }).lean();
+
       console.log("Payment found:", payment ? 'YES' : 'NO');
+      if (!payment) {
+        // Try fallback by parsing bookingId from OrderInfo
+        const orderInfo = vnp_Params['vnp_OrderInfo'] || '';
+        const m = typeof orderInfo === 'string' ? orderInfo.match(/Thanh toan ve (.+)/) : null;
+        if (m && m[1]) {
+          const fallbackBookingId = m[1];
+          payment = await Payment.findOne({ bookingId: fallbackBookingId }).lean();
+          if (payment) console.log('Found payment by bookingId fallback:', fallbackBookingId);
+        }
+      }
+
       if (!payment) {
         console.error("Payment not found for orderId:", orderId);
         return NextResponse.json({ RspCode: '01', Message: 'Order not found' });
       }
-      
+
       console.log("Payment status:", payment.status);
       console.log("Payment bookingId:", payment.bookingId);
       
@@ -77,8 +88,8 @@ export async function GET(req: Request) {
       if (rspCode === '00') {
         console.log("Processing successful payment...");
         // --- Cập nhật Thành công ---
-        const updatedPayment = await Payment.findByIdAndUpdate(
-          payment._id,
+        const updatedPayment = await Payment.findOneAndUpdate(
+          { _id: payment._id },
           {
             status: 'success',
             paymentDate: new Date(),
@@ -87,7 +98,6 @@ export async function GET(req: Request) {
           },
           { new: true }
         );
-        console.log("Payment updated to success:", updatedPayment ? 'YES' : 'NO');
         console.log("Payment updated to success:", updatedPayment ? 'YES' : 'NO');
 
         console.log("Updating booking:", payment.bookingId);
@@ -160,11 +170,14 @@ export async function GET(req: Request) {
         }
         
         return NextResponse.json({ RspCode: '00', Message: 'Success' });
-      } else {
+        } else {
         // --- Thất bại ---
         console.log("Payment failed with code:", rspCode);
-        payment.status = 'failed';
-        await payment.save();
+        try {
+          await Payment.findOneAndUpdate({ _id: payment._id }, { status: 'failed' });
+        } catch (e) {
+          console.error('Failed to mark payment as failed:', e);
+        }
         await Booking.findByIdAndUpdate(payment.bookingId, { status: 'cancelled' });
         console.log("Booking cancelled due to payment failure");
         return NextResponse.json({ RspCode: '00', Message: 'Success' });

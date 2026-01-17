@@ -41,10 +41,14 @@ export async function POST(req: Request) {
     // 3. Chuẩn bị tham số VNPAY
     const date = new Date();
     const createDate = dayjs(date).format('YYYYMMDDHHmmss');
-    const orderId = dayjs(date).format('DDHHmmss'); 
-    
-    payment.transactionId = orderId;
-    await payment.save();
+
+    // Reuse existing transactionId if payment already has one (generated at booking time)
+    let orderId = payment.transactionId;
+    if (!orderId) {
+      orderId = dayjs(date).format('DDHHmmss');
+      payment.transactionId = orderId;
+      await payment.save();
+    }
 
     // Xử lý IP
     let ipAddr = req.headers.get('x-forwarded-for') || '127.0.0.1';

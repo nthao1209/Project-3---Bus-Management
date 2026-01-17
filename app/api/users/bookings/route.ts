@@ -65,12 +65,14 @@ export async function POST(req: Request) {
       paymentExpireAt
     });
 
+    // Create payment and attach a stable transactionId (use booking._id)
     await Payment.create({
       bookingId: booking._id,
       userId: session?.userId || null,
       amount: totalPrice,
       method: isOfficePayment ? 'offline' : 'vnpay',
       status: 'pending',
+      transactionId: booking._id.toString(),
       createdAt: new Date()
     });
 

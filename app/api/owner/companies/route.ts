@@ -36,12 +36,16 @@ export async function POST(req: Request) {
     const body = await req.json();
     console.log('CREATE COMPANY BODY:', body);
 
-    const { name, description, hotline, email, address } = body;
+    const name = (body.companyName).toString().trim();
+    const hotline = (body.hotline).toString().trim();
+    const email = body.email;
+    const address = body.address || "";
+    const description = body.companyName || "";
 
     if (!name || !hotline) return NextResponse.json({ message: 'Tên và hotline bắt buộc' }, { status: 400 });
 
     const newCompany = await Company.create({
-      ownerId: session.userId, // Lấy ID từ object session
+      ownerId: session.userId, 
       name,
       description,
       hotline,
@@ -50,7 +54,6 @@ export async function POST(req: Request) {
       status: 'pending'
     });
 
-    // Update role nếu cần
     if (session.role !== 'owner') {
          await User.findByIdAndUpdate(session.userId, { role: 'owner' });
     }

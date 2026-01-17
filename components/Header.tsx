@@ -24,7 +24,8 @@
   } from '@ant-design/icons';
   import Link from 'next/link';
   import { useRouter } from 'next/navigation';
-  import { io as ioClient, Socket } from 'socket.io-client';
+  import { createSocket } from '@/lib/socketClient';
+  import { Socket } from 'socket.io-client';
 
   type Role = 'user' | 'owner' | 'driver' | 'admin';
 
@@ -120,9 +121,9 @@
         console.log('[NOTIFICATION] User logged in, setting up notifications for userId:', user.userId);
         fetchNotifications();
         const interval = setInterval(fetchNotifications, 30000);
-        try {
+          try {
           console.log('[SOCKET] Connecting to Socket.IO...');
-          const s = ioClient({ path: '/socket.io' });
+          const s = createSocket();
           socketRef.current = s as Socket;
           s.on('connect', () => {
             console.log('[SOCKET] Connected! Socket ID:', s.id);

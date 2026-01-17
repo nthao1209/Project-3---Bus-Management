@@ -8,8 +8,6 @@ import {
 } from '@ant-design/icons';
 import DataTable from '@/components/DataTable';
 
-const { Text } = Typography;
-
 interface Company {
   _id: string;
   name: string;
@@ -79,7 +77,7 @@ export default function CompaniesPage() {
     }
   };
 
-  // --- CẤU HÌNH CỘT CHO PC (Giữ nguyên) ---
+  // --- COLUMN PC ---
   const columns = [
     { title: 'Tên nhà xe', dataIndex: 'name', key: 'name', render: (text: string) => <b className="text-blue-600">{text}</b> },
     { title: 'Hotline', dataIndex: 'hotline', key: 'hotline' },
@@ -113,28 +111,25 @@ export default function CompaniesPage() {
     },
   ];
 
-  // --- RENDERING CHO MOBILE (Mới thêm) ---
-  
-  // 1. Mobile view cho danh sách Chờ duyệt
+  // --- RENDER MOBILE ---
   const renderPendingMobile = (item: Company) => (
     <Card 
       size="small"
       title={<span className="text-blue-600 font-bold">{item.name}</span>}
       className="border border-gray-200 shadow-sm"
       actions={[
-        <Button key="approve" type="text" className="text-green-600 font-medium" icon={<CheckCircleOutlined />} onClick={() => handleApprove(item._id, 'active')}>Duyệt</Button>,
-        <Button key="reject" type="text" danger icon={<CloseCircleOutlined />} onClick={() => handleApprove(item._id, 'inactive')}>Từ chối</Button>
+        <Button key="ok" type="text" className="text-green-600 font-medium" icon={<CheckCircleOutlined />} onClick={() => handleApprove(item._id, 'active')}>Duyệt</Button>,
+        <Button key="no" type="text" danger icon={<CloseCircleOutlined />} onClick={() => handleApprove(item._id, 'inactive')}>Từ chối</Button>
       ]}
     >
-      <div className="flex flex-col gap-2 text-gray-600">
+      <div className="flex flex-col gap-2 text-gray-600 text-sm">
         <div className="flex items-center gap-2"><UserOutlined /> <span>Chủ: {item.ownerName}</span></div>
-        <div className="flex items-center gap-2"><PhoneOutlined /> <span>Hotline: {item.hotline}</span></div>
-        <div className="flex items-center gap-2"><CalendarOutlined /> <span>Đk: {new Date(item.createdAt).toLocaleDateString('vi-VN')}</span></div>
+        <div className="flex items-center gap-2"><PhoneOutlined /> <a href={`tel:${item.hotline}`}>{item.hotline}</a></div>
+        <div className="flex items-center gap-2"><CalendarOutlined /> <span>{new Date(item.createdAt).toLocaleDateString('vi-VN')}</span></div>
       </div>
     </Card>
   );
 
-  // 2. Mobile view cho danh sách Đã duyệt
   const renderActiveMobile = (item: Company) => (
     <Card 
       size="small"
@@ -142,7 +137,7 @@ export default function CompaniesPage() {
       extra={<Tag color={item.status === 'active' ? 'green' : 'red'}>{item.status === 'active' ? 'Hoạt động' : 'Dừng'}</Tag>}
       className="border border-gray-200 shadow-sm"
     >
-       <div className="flex flex-col gap-2 text-gray-600">
+       <div className="flex flex-col gap-2 text-gray-600 text-sm">
         <div className="flex items-center gap-2"><UserOutlined /> <span className="font-medium">{item.ownerName}</span></div>
         <div className="flex items-center gap-2"><PhoneOutlined /> <a href={`tel:${item.hotline}`} className="text-blue-500">{item.hotline}</a></div>
         <div className="flex items-center gap-2 text-xs text-gray-400"><CalendarOutlined /> <span>{new Date(item.createdAt).toLocaleDateString('vi-VN')}</span></div>
@@ -164,7 +159,7 @@ export default function CompaniesPage() {
             onReload={fetchPendingCompanies}
             searchFields={['name', 'ownerName', 'hotline']}
             searchPlaceholder="Tìm tên, hotline..."
-            renderMobileItem={renderPendingMobile} // <-- Truyền prop này
+            renderMobileItem={renderPendingMobile}
           />
         </Tabs.TabPane>
         <Tabs.TabPane tab="Đã duyệt" key="2">
@@ -176,7 +171,7 @@ export default function CompaniesPage() {
             onReload={fetchActiveCompanies}
             searchFields={['name', 'ownerName', 'hotline']}
             searchPlaceholder="Tìm tên, hotline..."
-            renderMobileItem={renderActiveMobile} // <-- Truyền prop này
+            renderMobileItem={renderActiveMobile}
           />
         </Tabs.TabPane>
       </Tabs>

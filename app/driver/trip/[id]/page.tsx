@@ -72,7 +72,7 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
     fetchData();
  
     // 2. Khởi tạo Socket
-    const socketOrigin = process.env.NEXT_PUBLIC_SOCKET_ORIGIN ?? 'https://project-3-bus-management-production.up.railway.app';
+    const socketOrigin = process.env.SOCKET_ORIGIN ;
     const socketInstance = io(socketOrigin, { path: '/socket.io', transports: ['websocket'], reconnectionAttempts: 5 });
  
     socketInstance.on('connect', () => {
@@ -381,3 +381,4 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
     </div>
   );
 }
+ 

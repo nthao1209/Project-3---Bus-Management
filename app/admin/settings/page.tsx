@@ -44,11 +44,11 @@ export default function AdminSettingsPage() {
         
         // Trigger cron reload via socket
         try {
-          const { io } = await import('socket.io-client');
-          const socketOrigin = process.env.NEXT_PUBLIC_SOCKET_ORIGIN ?? 'https://project-3-bus-management-production.up.railway.app';
-          const socket = io(socketOrigin, { path: '/socket.io', transports: ['websocket'], reconnectionAttempts: 5 });
+          // Use centralized socket helper to connect to same origin briefly
+          const { createSocket, disconnectSocket } = await import('@/lib/socketClient');
+          const socket = createSocket();
           socket.emit('reload_cron_schedule');
-          socket.disconnect();
+          disconnectSocket();
         } catch (err) {
           console.error('Failed to reload cron:', err);
         }

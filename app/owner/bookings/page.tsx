@@ -47,7 +47,7 @@ export default function BookingManager() {
   // ... (GIỮ NGUYÊN LOGIC FETCH API, USEEFFECT) ... 
   // Copy lại phần useEffect connect socket, fetchCompanies, fetchTrips, fetchTripDetails từ code cũ của bạn
   useEffect(() => {
-    const socketOrigin = process.env.NEXT_PUBLIC_SOCKET_ORIGIN || 'https://project-3-bus-management-production.up.railway.app';
+    const socketOrigin = process.env.SOCKET_ORIGIN ;
     const socketInstance = io(socketOrigin, { path: '/socket.io', transports: ['websocket'] });
     setSocket(socketInstance);
     const fetchCompanies = async () => {

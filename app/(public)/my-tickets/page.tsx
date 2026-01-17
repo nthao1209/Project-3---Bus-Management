@@ -11,7 +11,8 @@ import {
 import dayjs from 'dayjs';
 import { useRouter } from 'next/navigation';
 import ReviewModal from '@/components/ReviewModal';
-import { io, Socket } from 'socket.io-client';
+import { createSocket } from '@/lib/socketClient';
+import { Socket } from 'socket.io-client';
 
 interface Ticket {
   _id: string;
@@ -76,24 +77,25 @@ export default function MyTicketsPage() {
     // Chỉ kết nối khi đã có danh sách vé để biết cần join vào chuyến nào
     if (tickets.length === 0) return;
 
-    // Khởi tạo socket
-    const socketOrigin = process.env.NEXT_PUBLIC_SOCKET_ORIGIN ?? 'https://project-3-bus-management.vercel.app';
-    const socketInstance = io(socketOrigin, { path: '/socket.io', transports: ['websocket'], reconnectionAttempts: 5 });
+    // Khởi tạo socket (dynamic import to ensure browser-only module)
+    let socketInstance: Socket | null = null;
+    let mounted = true;
+    (async () => {
+      try {
+        const mod = await import('@/lib/socketClient');
+        if (!mounted) return;
+        socketInstance = mod.createSocket();
 
-    socketInstance.on('connect', () => {
-      
-      // Lấy danh sách các Trip ID từ vé của user
-      // (Để user join vào các chuyến xe mình có vé, từ đó nghe được sự kiện từ tài xế)
-      const uniqueTripIds = Array.from(new Set(tickets.map(t => t.tripId._id)));
-      
-      uniqueTripIds.forEach(tripId => {
-        // Gửi sự kiện join_trip với ID trần (không prefix) khớp với server
-        socketInstance.emit('join_trip', tripId);
-      });
-    });
+        socketInstance.on('connect', () => {
+          // Lấy danh sách các Trip ID từ vé của user
+          const uniqueTripIds = Array.from(new Set(tickets.map(t => t.tripId._id)));
+          uniqueTripIds.forEach(tripId => {
+            socketInstance?.emit('join_trip', tripId);
+          });
+        });
 
-    // 1. Lắng nghe cập nhật trạng thái Vé (Khi Tài xế bấm Thu tiền / Đã đón)
-    socketInstance.on('booking_updated', (data: any) => {
+        // 1. Lắng nghe cập nhật trạng thái Vé (Khi Tài xế bấm Thu tiền / Đã đón)
+        socketInstance.on('booking_updated', (data: any) => {
       
       setTickets(prevTickets => prevTickets.map(ticket => {
         // Chỉ cập nhật đúng vé có ID tương ứng
@@ -107,8 +109,8 @@ export default function MyTicketsPage() {
       }));
     });
 
-    // 2. Lắng nghe cập nhật trạng thái Chuyến đi (Khi Tài xế bấm Hoàn thành)
-    socketInstance.on('trip_status_updated', (data: any) => {
+        // 2. Lắng nghe cập nhật trạng thái Chuyến đi (Khi Tài xế bấm Hoàn thành)
+        socketInstance.on('trip_status_updated', (data: any) => {
 
       setTickets(prevTickets => prevTickets.map(ticket => {
         if (ticket.tripId._id === data.tripId) {
@@ -122,9 +124,18 @@ export default function MyTicketsPage() {
       }));
     });
 
+        socketInstance.on('disconnect', () => {
+          // noop
+        });
+      } catch (err) {
+        console.error('Socket init error:', err);
+      }
+    })();
+
     // Cleanup khi unmount
     return () => {
-      socketInstance.disconnect();
+      mounted = false;
+      try { socketInstance?.disconnect(); } catch (e) {}
     };
   }, [tickets.length]); // Chạy lại khi số lượng vé thay đổi (để join room mới nếu mua thêm vé)
 
@@ -236,18 +247,18 @@ export default function MyTicketsPage() {
                   <div className="flex-1">
                         <div className="flex justify-between items-start mb-2">
                           <h3 className="font-bold text-lg text-blue-900 m-0">
-                            {ticket.tripId.routeId.name}
+                            {ticket.tripId?.routeId?.name || 'Tuyến (không xác định)'}
                           </h3>
 
                           {/* Trạng thái vé – CHỈ hiện khi chưa completed */}
-                          {ticket.tripId.status !== 'completed' && (
+                          {ticket.tripId?.status && ticket.tripId.status !== 'completed' && (
                             <div className="md:hidden">
                               {getStatusTag(ticket.status)}
                             </div>
                           )}
 
                           {/* Trạng thái chuyến */}
-                          {ticket.tripId.status === 'completed' && (
+                          {ticket.tripId?.status === 'completed' && (
                             <Tag color="cyan">Đã hoàn thành chuyến đi</Tag>
                           )}
                         </div>
@@ -257,12 +268,12 @@ export default function MyTicketsPage() {
                         <div className="flex items-center gap-2">
                             <ClockCircleOutlined className="text-blue-500"/>
                             <span className="font-semibold text-gray-800">
-                                {dayjs(ticket.tripId.departureTime).format('HH:mm - DD/MM/YYYY')}
+                                {ticket.tripId?.departureTime ? dayjs(ticket.tripId.departureTime).format('HH:mm - DD/MM/YYYY') : 'Thời gian (không xác định)'}
                             </span>
                         </div>
                         <div className="flex items-center gap-2">
                             <CarOutlined className="text-blue-500"/>
-                            <span>{ticket.tripId.busId.plateNumber} ({ticket.tripId.busId.type})</span>
+                            <span>{ticket.tripId?.busId?.plateNumber || 'Xe (không xác định)'} ({ticket.tripId?.busId?.type || '-'})</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <EnvironmentOutlined className="text-red-500"/>
@@ -320,7 +331,7 @@ export default function MyTicketsPage() {
                       )}
 
                       {/* Nút Đánh giá */}
-                      {ticket.tripId.status === 'completed' && 
+                        {ticket.tripId?.status === 'completed' && 
                           ['confirmed', 'boarded', 'completed'].includes(ticket.status) && (
                             <>
                                 {ticket.isReviewed ? (
@@ -395,16 +406,16 @@ export default function MyTicketsPage() {
                         <Descriptions.Item label="Số điện thoại">{selectedTicket.customerInfo.phone}</Descriptions.Item>
                         
                         <Descriptions.Item label="Tuyến đường" span={2}>
-                            {selectedTicket.tripId.routeId.name}
+                            {selectedTicket.tripId?.routeId?.name || 'Tuyến (không xác định)'}
                         </Descriptions.Item>
                         
                         <Descriptions.Item label="Giờ khởi hành">
                             <span className="text-blue-600 font-bold">
-                                {dayjs(selectedTicket.tripId.departureTime).format('HH:mm DD/MM/YYYY')}
+                                {selectedTicket.tripId?.departureTime ? dayjs(selectedTicket.tripId.departureTime).format('HH:mm DD/MM/YYYY') : 'Thời gian (không xác định)'}
                             </span>
                         </Descriptions.Item>
                         <Descriptions.Item label="Biển số xe">
-                            {selectedTicket.tripId.busId.plateNumber}
+                            {selectedTicket.tripId?.busId?.plateNumber || 'Xe (không xác định)'}
                         </Descriptions.Item>
 
                         <Descriptions.Item label="Điểm đón" span={2}>

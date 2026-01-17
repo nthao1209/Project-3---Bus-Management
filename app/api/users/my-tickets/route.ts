@@ -24,16 +24,21 @@ export async function GET(req: Request) {
 
     // 2. Kiểm tra trạng thái đánh giá cho từng vé
     const data = await Promise.all(bookings.map(async (booking: any) => {
-        const review = await Review.findOne({ 
-            userId: session.userId, 
-            tripId: booking.tripId._id 
-        }).select('_id rating comment');
+      // booking.tripId can be null (e.g. trip deleted) or an ObjectId / populated doc.
+      const tripIdValue = booking.tripId && (booking.tripId._id || booking.tripId) ? (booking.tripId._id || booking.tripId) : null;
+      let review = null;
+      if (tripIdValue) {
+        review = await Review.findOne({
+          userId: session.userId,
+          tripId: tripIdValue
+        }).select('_id rating comment').lean();
+      }
 
-        return {
-            ...booking,
-            isReviewed: !!review, 
-            reviewDetail: review || null 
-        };
+      return {
+        ...booking,
+        isReviewed: !!review,
+        reviewDetail: review || null
+      };
     }));
 
     return NextResponse.json({ success: true, data });

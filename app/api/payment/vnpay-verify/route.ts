@@ -61,8 +61,20 @@ export async function GET(req: Request) {
     console.log("Response Code:", rspCode);
 
     await dbConnect();
-    const payment = await Payment.findOne({ transactionId: orderId }).lean();
-    
+    let payment: any = await Payment.findOne({ transactionId: orderId }).lean();
+
+    // Fallback: sometimes VNPay may return but transactionId not matched.
+    // Try to parse bookingId from OrderInfo like "Thanh toan ve <bookingId>"
+    if (!payment) {
+      const orderInfo = vnp_Params['vnp_OrderInfo'] || '';
+      const m = typeof orderInfo === 'string' ? orderInfo.match(/Thanh toan ve (.+)/) : null;
+      if (m && m[1]) {
+        const fallbackBookingId = m[1];
+        payment = await Payment.findOne({ bookingId: fallbackBookingId }).lean();
+        if (payment) console.log('Found payment by bookingId fallback:', fallbackBookingId);
+      }
+    }
+
     if (!payment) {
       return NextResponse.json({ 
         success: false, 
@@ -85,13 +97,17 @@ export async function GET(req: Request) {
     if (rspCode === '00') {
       console.log("Processing successful payment...");
       
-      // Update payment
-      await Payment.findByIdAndUpdate(payment._id, {
-        status: 'success',
-        paymentDate: new Date(),
-        bankCode: vnp_Params['vnp_BankCode'],
-        vnpayTransactionNo: vnpayTransactionNo
-      });
+      // Update payment (safer to use findOneAndUpdate by _id)
+      try {
+        await Payment.findOneAndUpdate({ _id: payment._id }, {
+          status: 'success',
+          paymentDate: new Date(),
+          bankCode: vnp_Params['vnp_BankCode'],
+          vnpayTransactionNo: vnpayTransactionNo
+        });
+      } catch (updErr) {
+        console.error('Payment update error:', updErr);
+      }
 
       // Update booking
       const booking = await Booking.findOneAndUpdate(

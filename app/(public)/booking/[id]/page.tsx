@@ -4,7 +4,8 @@ import { useState, useEffect, use, useRef } from 'react';
 import { Spin, message, Row, Col, Button, Drawer } from 'antd';
 import { useRouter } from 'next/navigation';
 import { EnvironmentOutlined, ShoppingCartOutlined } from '@ant-design/icons';
-import { io, Socket } from 'socket.io-client';
+import { createSocket } from '@/lib/socketClient';
+import { Socket } from 'socket.io-client';
 
 import TripHeader from '@/components/booking/TripHeader';
 import SeatMap from '@/components/booking/SeatMap';
@@ -51,8 +52,7 @@ export default function BookingPage({ params }: { params: Promise<{ id: string }
 
   useEffect(() => {
     if(!tripId) return;
-    const socketOrigin = process.env.NEXT_PUBLIC_SOCKET_ORIGIN ?? 'https://project-3-bus-management-production.up.railway.app';
-    socketRef.current = io(socketOrigin, { path: '/socket.io', transports: ['websocket'], reconnectionAttempts: 5 });
+    socketRef.current = createSocket();
     const socket = socketRef.current;
 
     socket.on('connect', () => { socket.emit('join_trip', tripId); });

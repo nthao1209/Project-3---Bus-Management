@@ -114,7 +114,6 @@ export default function UserManagementPage() {
     }
   ];
 
-  // --- RENDER MOBILE ITEM ---
   const renderMobileItem = (item: any) => (
     <Card 
       size="small" 

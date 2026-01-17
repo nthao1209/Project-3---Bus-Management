@@ -50,7 +50,7 @@ export default function OwnerDashboard() {
 
   useEffect(() => {
     if (!currentUser) return;
-    const socketOrigin = process.env.NEXT_PUBLIC_SOCKET_ORIGIN || 'https://project-3-bus-management-production.up.railway.app';
+    const socketOrigin = process.env.SOCKET_ORIGIN ;
     const socketInstance = io(socketOrigin, { path: '/socket.io', transports: ['websocket'] });
     socketInstance.on('connect', () => socketInstance.emit('join_user_room', currentUser._id));
     socketInstance.on('receive_notification', (notif: any) => {
@@ -89,7 +89,7 @@ export default function OwnerDashboard() {
   useEffect(() => { fetchStats(); }, [filterType, filterDate, selectedCompany]);
 
   useEffect(() => {
-    const socketOrigin = process.env.NEXT_PUBLIC_SOCKET_ORIGIN || 'https://project-3-bus-management-production.up.railway.app';
+    const socketOrigin = process.env.SOCKET_ORIGIN ;
     const socketInstance = io(socketOrigin, { path: '/socket.io', transports: ['websocket'] });
     socketInstance.on('connect', () => { if (selectedCompany) socketInstance.emit('join_company_dashboard', selectedCompany); });
     socketInstance.on('new_booking', (eventData: any) => {
@@ -221,6 +221,9 @@ export default function OwnerDashboard() {
              />
              <div className="flex items-center gap-3 ml-1 border-l pl-3">
                  <Button icon={<SyncOutlined />} onClick={() => fetchStats()} size="small" shape="circle" />
+                 <Badge count={newBookingCount} size="small">
+                    <BellOutlined style={{ fontSize: 18, color: '#1890ff' }} onClick={() => { setNewBookingCount(0); }} />
+                 </Badge>
              </div>
         </div>
       </div>
