@@ -77,7 +77,7 @@ export default function MyTicketsPage() {
     if (tickets.length === 0) return;
 
     // Khởi tạo socket
-    const socketOrigin = process.env.NEXT_PUBLIC_SOCKET_ORIGIN ?? 'https://project-3-bus-management-production.up.railway.app';
+    const socketOrigin = process.env.NEXT_PUBLIC_SOCKET_ORIGIN ?? 'https://project-3-bus-management.vercel.app';
     const socketInstance = io(socketOrigin, { path: '/socket.io', transports: ['websocket'], reconnectionAttempts: 5 });
 
     socketInstance.on('connect', () => {

@@ -1,8 +1,11 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Button, Space, Popconfirm, message, Tag, Form } from 'antd';
-import { EditOutlined, DeleteOutlined, SwapRightOutlined } from '@ant-design/icons';
+import { Button, Space, Popconfirm, message, Tag, Form, Card } from 'antd';
+import { 
+  EditOutlined, DeleteOutlined, SwapRightOutlined, 
+  EnvironmentOutlined 
+} from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 
 import DataTable from '@/components/DataTable';
@@ -20,8 +23,6 @@ interface Route {
   defaultDropoffPoints?: any[];
 }
 
-
-
 export default function OwnerRoutesPage() {
   const [routes, setRoutes] = useState<Route[]>([]);
   const [stations, setStations] = useState<any[]>([]);
@@ -32,7 +33,6 @@ export default function OwnerRoutesPage() {
   const [stationModalOpen, setStationModalOpen] = useState(false);
 
   const [form] = Form.useForm();
-
 
   const fetchRoutes = async () => {
     setLoading(true);
@@ -71,7 +71,6 @@ export default function OwnerRoutesPage() {
     fetchStations();
   }, []);
 
-
   const handleSubmit = async (values: any) => {
     const url = editingRoute
       ? `/api/owner/routes/${editingRoute._id}`
@@ -100,16 +99,28 @@ export default function OwnerRoutesPage() {
     fetchRoutes();
   };
 
-  /* ================= TABLE ================= */
+  const openEdit = (r: Route) => {
+    setEditingRoute(r);
+    form.setFieldsValue({
+      ...r,
+      startStationId: r.startStationId?._id,
+      endStationId: r.endStationId?._id,
+      defaultPickupPoints: r.defaultPickupPoints || [],
+      defaultDropoffPoints: r.defaultDropoffPoints || [],
+    });
+    setRouteModalOpen(true);
+  };
 
+  // --- TABLE COLUMNS (PC) ---
   const columns: ColumnsType<Route> = [
     {
       title: 'Tuyến',
       dataIndex: 'name',
       render: (_, r) => (
         <div>
-          <b>{r.name}</b>
-          <div className="text-xs text-gray-500">
+          <b className="text-blue-700">{r.name}</b>
+          <div className="text-xs text-gray-500 flex items-center gap-2 mt-1">
+            <EnvironmentOutlined />
             {r.startStationId?.province} <SwapRightOutlined /> {r.endStationId?.province}
           </div>
         </div>
@@ -119,21 +130,7 @@ export default function OwnerRoutesPage() {
       title: 'Hành động',
       render: (_, r) => (
         <Space>
-          <Button
-            icon={<EditOutlined />}
-            size="small"
-            onClick={() => {
-              setEditingRoute(r);
-              form.setFieldsValue({
-                ...r,
-                startStationId: r.startStationId?._id,
-                endStationId: r.endStationId?._id,
-                defaultPickupPoints: r.defaultPickupPoints || [],
-                defaultDropoffPoints: r.defaultDropoffPoints || [],
-              });
-              setRouteModalOpen(true);
-            }}
-          />
+          <Button icon={<EditOutlined />} size="small" onClick={() => openEdit(r)} />
           <Popconfirm title="Xóa?" onConfirm={() => handleDelete(r._id)}>
             <Button danger size="small" icon={<DeleteOutlined />} />
           </Popconfirm>
@@ -142,10 +139,37 @@ export default function OwnerRoutesPage() {
     },
   ];
 
+  // --- RENDER MOBILE ITEM ---
+  const renderMobileItem = (item: Route) => (
+    <Card
+      size="small"
+      title={<span className="font-bold text-blue-700">{item.name}</span>}
+      className="border border-gray-200 shadow-sm"
+      actions={[
+        <Button key="edit" type="text" icon={<EditOutlined />} onClick={() => openEdit(item)}>Sửa</Button>,
+        <Popconfirm key="del" title="Xóa?" onConfirm={() => handleDelete(item._id)}>
+            <Button type="text" danger icon={<DeleteOutlined />}>Xóa</Button>
+        </Popconfirm>
+      ]}
+    >
+       <div className="flex flex-col gap-2 text-gray-600">
+          <div className="flex items-center gap-2 text-sm">
+             <EnvironmentOutlined className="text-green-600"/>
+             <span className="font-medium">{item.startStationId?.name} ({item.startStationId?.province})</span>
+          </div>
+          <div className="pl-6"><SwapRightOutlined className="rotate-90 md:rotate-0 text-gray-400"/></div>
+          <div className="flex items-center gap-2 text-sm">
+             <EnvironmentOutlined className="text-red-600"/>
+             <span className="font-medium">{item.endStationId?.name} ({item.endStationId?.province})</span>
+          </div>
+       </div>
+    </Card>
+  );
+
   return (
-    <div className="p-4">
+    <div className="p-4 bg-gray-50 min-h-screen">
       <DataTable
-        title="Quản lý Tuyến đường"
+        title={<span className="text-xl font-bold">Quản lý Tuyến đường</span>}
         columns={columns}
         dataSource={routes}
         loading={loading}
@@ -155,6 +179,7 @@ export default function OwnerRoutesPage() {
           setRouteModalOpen(true);
         }}
         onReload={fetchRoutes}
+        renderMobileItem={renderMobileItem} // <-- TRUYỀN HÀM RENDER MOBILE
       />
 
       <RouteModal

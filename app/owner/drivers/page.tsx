@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Button, Modal, Form, Input, Select, // Thêm Select
-  Tag, message, Space, Popconfirm, Avatar, Row, Col, Switch 
+  Button, Modal, Form, Input, Select, 
+  Tag, message, Space, Popconfirm, Avatar, Row, Col, Switch, Card 
 } from 'antd';
 import { 
   PlusOutlined, EditOutlined, DeleteOutlined, 
-  UserOutlined, PhoneOutlined, IdcardOutlined, LockOutlined, ShopOutlined 
+  UserOutlined, PhoneOutlined, IdcardOutlined, LockOutlined, 
+  ShopOutlined, MailOutlined 
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import DataTable from '@/components/DataTable';
@@ -26,19 +27,15 @@ interface Driver {
 
 export default function OwnerDriversPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
-  // State lưu danh sách công ty để chọn
   const [companies, setCompanies] = useState<{label: string, value: string}[]>([]); 
-  
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDriver, setEditingDriver] = useState<Driver | null>(null);
   const [form] = Form.useForm();
 
-  // 1. Fetch Dữ liệu (Drivers + Companies)
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Gọi song song 2 API
       const [resDrivers, resCompanies] = await Promise.all([
         fetch('/api/owner/drivers'),
         fetch('/api/owner/companies')
@@ -52,14 +49,12 @@ export default function OwnerDriversPage() {
       }
 
       if (dataCompanies.success) {
-        // Map dữ liệu công ty thành format cho Select của Antd
         const options = dataCompanies.data.map((c: any) => ({
             label: c.name,
             value: c._id
         }));
         setCompanies(options);
       }
-
     } catch (error) {
       message.error('Lỗi tải dữ liệu');
     } finally {
@@ -69,19 +64,16 @@ export default function OwnerDriversPage() {
 
   useEffect(() => { fetchData(); }, []);
 
-  // 2. Mở Modal (Xử lý fill dữ liệu companyId)
   const openModal = (record?: Driver) => {
     if (record) {
         setEditingDriver(record);
         form.setFieldsValue({
             ...record,
-            // Nếu record có companyId object -> lấy _id để binding vào Select
             companyId: record.companyId?._id 
         });
     } else {
         setEditingDriver(null);
         form.resetFields();
-        // Nếu chỉ có 1 công ty, tự chọn luôn cho tiện
         if (companies.length === 1) {
             form.setFieldValue('companyId', companies[0].value);
         }
@@ -89,7 +81,6 @@ export default function OwnerDriversPage() {
     setIsModalOpen(true);
   };
 
-  // 3. Submit Form
   const handleSubmit = async (values: any) => {
     try {
       const url = editingDriver 
@@ -110,7 +101,7 @@ export default function OwnerDriversPage() {
         setIsModalOpen(false);
         form.resetFields();
         setEditingDriver(null);
-        fetchData(); // Reload lại danh sách
+        fetchData(); 
       } else {
         message.error(json.message || 'Có lỗi xảy ra');
       }
@@ -119,7 +110,6 @@ export default function OwnerDriversPage() {
     }
   };
 
-  // 4. Xóa
   const handleDelete = async (id: string) => {
     try {
       const res = await fetch(`/api/owner/drivers/${id}`, { method: 'DELETE' });
@@ -132,7 +122,7 @@ export default function OwnerDriversPage() {
     } catch { message.error('Lỗi hệ thống'); }
   };
 
-  // 5. Cột bảng
+  // --- TABLE COLUMNS (PC) ---
   const columns: ColumnsType<Driver> = [
     {
       title: 'Tài xế',
@@ -172,16 +162,60 @@ export default function OwnerDriversPage() {
     }
   ];
 
+  // --- RENDER MOBILE ITEM ---
+  const renderMobileItem = (item: Driver) => (
+    <Card
+      size="small"
+      title={
+        <div className="flex items-center gap-3">
+          <Avatar icon={<UserOutlined />} className="bg-blue-500" />
+          <span className="font-bold text-gray-800">{item.name}</span>
+        </div>
+      }
+      extra={item.isActive ? <Tag color="green">Active</Tag> : <Tag color="red">Locked</Tag>}
+      className="border border-gray-200 shadow-sm"
+      actions={[
+        <Button key="edit" type="text" icon={<EditOutlined />} onClick={() => openModal(item)}>Sửa</Button>,
+        <Popconfirm key="del" title="Xóa?" onConfirm={() => handleDelete(item._id)}>
+            <Button type="text" danger icon={<DeleteOutlined />}>Xóa</Button>
+        </Popconfirm>
+      ]}
+    >
+       <div className="flex flex-col gap-2 text-sm text-gray-600">
+          <div className="flex items-center gap-2">
+             <PhoneOutlined className="text-green-600" />
+             <a href={`tel:${item.phone}`} className="font-medium text-gray-800">{item.phone}</a>
+          </div>
+          <div className="flex items-center gap-2">
+             <MailOutlined /> 
+             <span>{item.email}</span>
+          </div>
+          <div className="flex items-center gap-2">
+             <ShopOutlined /> 
+             <span>{item.companyId?.name || 'Chưa gán nhà xe'}</span>
+          </div>
+          {item.driverLicense && (
+             <div className="flex items-center gap-2">
+                <IdcardOutlined />
+                <span>Bằng lái: {item.driverLicense}</span>
+             </div>
+          )}
+       </div>
+    </Card>
+  );
+
   return (
     <div className="p-4 bg-gray-50 min-h-screen">
       <DataTable
-        title="Danh sách Tài xế"
+        title={<span className="text-xl font-bold">Danh sách Tài xế</span>}
         columns={columns}
         dataSource={drivers}
         loading={loading}
         onReload={fetchData}
         onAdd={() => openModal()}
-        searchFields={['name', 'phone']}
+        searchFields={['name', 'phone', 'email']}
+        searchPlaceholder="Tìm tên, SĐT..."
+        renderMobileItem={renderMobileItem} // <-- TRUYỀN HÀM RENDER MOBILE
       />
 
       <Modal
@@ -209,8 +243,7 @@ export default function OwnerDriversPage() {
                     />
                  </Form.Item>
               </Col>
-              {/* =================================== */}
-
+              
               <Col xs={24} md={12}>
                  <Form.Item name="name" label="Họ và tên" rules={[{ required: true }]}>
                     <Input prefix={<UserOutlined />} />

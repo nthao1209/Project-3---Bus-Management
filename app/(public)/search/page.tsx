@@ -191,7 +191,7 @@ function SearchContent() {
       <div className="lg:hidden flex justify-between items-center py-4 border-b border-gray-200 mb-4 sticky top-[80px] lg:top-[154px] z-30 bg-[#F2F2F2]">
           <div>
              <span className="text-gray-600 text-sm">Tìm thấy </span>
-             <span className="font-bold text-blue-600 text-lg">{trips.length}</span>
+             <span className="font-bold text-blue-600 text-lg">{filteredTrips.length}</span>
              <span className="text-gray-600 text-sm"> chuyến</span>
           </div>
           <Button 
@@ -240,7 +240,7 @@ function SearchContent() {
            <div className="hidden lg:flex justify-between items-end mb-4">
               <div>
                 <h1 className="text-xl font-bold text-gray-800">
-                    Kết quả tìm kiếm: {loading ? '...' : trips.length} chuyến
+                    Kết quả tìm kiếm: {loading ? '...' : filteredTrips.length} chuyến
                 </h1>
                 {from && to && (
                     <p className="text-sm text-gray-500 mt-1">

@@ -1,17 +1,17 @@
 'use client';
-
+ 
 import React, { useEffect, useState, use } from 'react';
-import { 
+import {
   Button, Card, List, Tag, message, Popconfirm, Segmented, Spin, Alert
 } from 'antd';
-import { 
-  PhoneFilled, CheckCircleFilled, DollarCircleFilled, 
-  EnvironmentFilled, ArrowLeftOutlined, SyncOutlined, WarningOutlined 
+import {
+  PhoneFilled, CheckCircleFilled, DollarCircleFilled,
+  EnvironmentFilled, ArrowLeftOutlined, SyncOutlined, WarningOutlined
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import dayjs from 'dayjs';
 import { io, Socket } from 'socket.io-client';
-
+ 
 interface Booking {
   _id: string;
   seatCodes: string[];
@@ -28,27 +28,27 @@ interface TripInfo {
   routeId: { name: string };
   busId: { plateNumber: string };
 }
-
-
+ 
+ 
 export default function TripDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  
+ 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [tripInfo, setTripInfo] = useState<TripInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'paid'>('all');
   const router = useRouter();
   const [socket, setSocket] = useState<Socket | null>(null);
-
+ 
   const fetchData = async (isBackground = false) => {
     if (!isBackground) setLoading(true);
     try {
       const resBookings = await fetch(`/api/driver/trips/${id}/bookings`);
       const dataBookings = await resBookings.json();
-      
+     
       const resTripInfo = await fetch(`/api/driver/trips/${id}`);
       const dataTripInfo = await resTripInfo.json();
-      
+     
       if (dataBookings.success) {
         setBookings(dataBookings.data);
       }
@@ -65,22 +65,22 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
       if (!isBackground) setLoading(false);
     }
   };
-
+ 
   // --- LOGIC REALTIME Ở ĐÂY ---
   useEffect(() => {
     // 1. Load dữ liệu lần đầu
     fetchData();
-
+ 
     // 2. Khởi tạo Socket
     const socketOrigin = process.env.NEXT_PUBLIC_SOCKET_ORIGIN ?? 'https://project-3-bus-management-production.up.railway.app';
     const socketInstance = io(socketOrigin, { path: '/socket.io', transports: ['websocket'], reconnectionAttempts: 5 });
-
+ 
     socketInstance.on('connect', () => {
       socketInstance.emit('join_trip', id);
     });
-
+ 
     const handleUpdate = (data: any) => {
-      
+     
       // OPTIMISTIC UPDATE: Cập nhật state ngay lập tức để giao diện phản hồi nhanh
       // (Phòng trường hợp fetchData bị chậm)
       setBookings(prev => prev.map(b => {
@@ -89,28 +89,28 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
         }
         return b;
       }));
-
+ 
       // Sau đó fetch lại để đảm bảo đồng bộ hoàn toàn
       fetchData(true);
     };
-
-
+ 
+ 
     socketInstance.on('new_booking', (data) => {
       message.info(` Có khách mới đặt ghế: ${data.seatCodes?.join(', ')}`);
       fetchData(true); // Load lại ngầm
     });
-
+ 
     socketInstance.on('booking_updated', (data) => {
       fetchData(true); // Load lại ngầm
     });
-
+ 
     setSocket(socketInstance);
-
+ 
     return () => {
       socketInstance.disconnect();
     };
   }, [id]);
-
+ 
   const updateTripStatus = async (status: string) => {
     try {
       const res = await fetch(`/api/driver/trips/${id}/status`, {
@@ -126,7 +126,23 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
       message.error('Lỗi cập nhật');
     }
   };
-
+ 
+  // Kiểm tra và xử lý khi tài xế muốn bắt đầu chạy
+  const handleStart = async () => {
+    if (!tripInfo) return message.error('Không có thông tin chuyến');
+ 
+    const now = dayjs();
+    const earliestStart = dayjs(tripInfo.departureTime).subtract(5, 'minute');
+ 
+    if (now.isBefore(earliestStart)) {
+      return message.warning(
+        `Chỉ được bắt đầu chạy tối đa 5 phút trước giờ xuất bến. Vui lòng đợi đến ${earliestStart.format('HH:mm, DD/MM/YYYY')}`
+      );
+    }
+ 
+    return updateTripStatus('running');
+  };
+ 
   const handleComplete = async () => {
     if (!tripInfo) return message.error('Không có thông tin chuyến');
     const allowedAt = dayjs(tripInfo.departureTime).add(30, 'minute');
@@ -135,38 +151,38 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
     }
     return updateTripStatus('completed');
   };
-  
+ 
   // Hàm xử lý xác nhận khách lên xe
      const handleBoarding = async (bookingId: string) => {
     try {
-      setBookings(prev => prev.map(b => 
+      setBookings(prev => prev.map(b =>
         b._id === bookingId ? { ...b, status: 'boarded' } : b
       ));
-
+ 
       const res = await fetch(`/api/driver/trips/${id}/bookings/${bookingId}/status`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'boarded' })
       });
-
+ 
       if (res.ok) {
         message.success('Đã đón khách!');
       } else {
         message.error('Lỗi cập nhật');
-        fetchData(true); 
+        fetchData(true);
       }
     } catch (error) {
       message.error('Lỗi kết nối');
       fetchData(true);
     }
   };
-
+ 
    const checkIsLate = () => {
     if (!tripInfo) return { isLate: false, diffMinutes: 0 };
-    
+   
     const now = dayjs();
     const departure = dayjs(tripInfo.departureTime);
-    
+   
     // Nếu trạng thái vẫn là 'scheduled' và giờ hiện tại > giờ đi
     if (tripInfo.status === 'scheduled' && now.isAfter(departure)) {
       const diffMinutes = now.diff(departure, 'minute');
@@ -177,21 +193,21 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
     }
     return { isLate: false, diffMinutes: 0 };
   };
-
+ 
   const { isLate, diffMinutes } = checkIsLate();
-
+ 
    const confirmPayment = async (bookingId: string) => {
     try {
-      setBookings(prev => prev.map(b => 
+      setBookings(prev => prev.map(b =>
         b._id === bookingId ? { ...b, status: 'confirmed' } : b
       ));
-
+ 
       const res = await fetch('/api/driver/payment/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ bookingId })
       });
-      
+     
       if (res.ok) {
         message.success('Đã xác nhận thu tiền');
       } else {
@@ -203,14 +219,14 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
       fetchData(true);
     }
   };
-
+ 
   const filteredBookings = bookings.filter(b => {
     if (filter === 'all') return true;
     if (filter === 'pending') return b.status === 'pending_payment';
     if (filter === 'paid') return b.status === 'confirmed' || b.status === 'boarded';
     return true;
   });
-
+ 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <div className="bg-white p-4 sticky top-0 z-10 shadow-sm">
@@ -236,24 +252,24 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
             icon={<WarningOutlined />}
             className="mb-3 animate-pulse border-red-400 bg-red-50"
             action={
-              <Button 
-                size="small" 
-                type="primary" 
-                danger 
-                onClick={() => updateTripStatus('running')}
+              <Button
+                size="small"
+                type="primary"
+                danger
+                onClick={() => handleStart()}
               >
                 Bắt đầu ngay
               </Button>
             }
           />
         )}
-        
+       
         <div className="flex flex-col sm:flex-row gap-2 mb-2">
            {tripInfo?.status === 'scheduled' && (
-             <Popconfirm title="Bắt đầu chạy chuyến này?" onConfirm={() => updateTripStatus('running')}>
-               <Button 
-                 type="primary" 
-                 block 
+             <Popconfirm title="Bắt đầu chạy chuyến này?" onConfirm={() => handleStart()}>
+               <Button
+                 type="primary"
+                 block
                  className={`w-full sm:w-auto ${isLate ? 'bg-red-600 hover:bg-red-500 animate-bounce' : 'bg-blue-600'}`}
                >
                  {isLate ? `BẮT ĐẦU CHẠY (TRỄ ${diffMinutes}P)` : 'Bắt đầu chạy'}
@@ -268,7 +284,7 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
              </Popconfirm>
            )}
         </div>
-
+ 
         <div className="mb-2 overflow-x-auto">
           <Segmented
             block
@@ -282,7 +298,7 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
           />
         </div>
       </div>
-
+ 
       <div className="p-4 flex-1 overflow-y-auto">
           <List
           loading={loading && bookings.length === 0} // Chỉ hiện loading to khi chưa có dữ liệu lần đầu
@@ -305,14 +321,14 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
                   {['confirmed', 'boarded'].includes(item.status) ? 'Đã TT' : 'Chưa TT'}
                 </Tag>
               </div>
-
+ 
               <div className="bg-gray-50 p-2 rounded text-xs text-gray-600 space-y-1 mb-3">
                 <div className="flex gap-2 items-center">
-                   <EnvironmentFilled className="text-green-600" /> 
+                   <EnvironmentFilled className="text-green-600" />
                    <span className="truncate">Đón: <b>{dayjs(item.pickupPoint?.time).format('HH:mm')}</b> - {item.pickupPoint?.name}</span>
                 </div>
                 <div className="flex gap-2 items-center">
-                   <EnvironmentFilled className="text-red-500" /> 
+                   <EnvironmentFilled className="text-red-500" />
                    <span className="truncate">Trả: {item.dropoffPoint?.name}</span>
                 </div>
                 {item.note && (
@@ -321,16 +337,16 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
                   </div>
                 )}
               </div>
-
+ 
               <div className="flex flex-col sm:flex-row justify-between items-center gap-3">
                 <div className="font-bold text-lg text-gray-700">
                     {item.totalPrice.toLocaleString()} đ
                 </div>
-              
+             
               {/* CASE 1: Chưa thanh toán -> Hiện nút Thu Tiền */}
               {item.status === 'pending_payment' && (
-                <Popconfirm 
-                    title="Xác nhận đã thu tiền?" 
+                <Popconfirm
+                    title="Xác nhận đã thu tiền?"
                     onConfirm={() => confirmPayment(item._id)}
                     okText="Đã thu"
                     cancelText="Hủy"
@@ -340,19 +356,19 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
                   </Button>
                 </Popconfirm>
               )}
-              
+             
               {/* CASE 2: Đã thanh toán (Confirmed) -> Hiện nút Đã Đón */}
               {item.status === 'confirmed' && (
-                  <Button 
-                    type="primary" 
-                    size="small" 
+                  <Button
+                    type="primary"
+                    size="small"
                     className="bg-blue-600"
                     onClick={() => handleBoarding(item._id)}
                   >
                     Đón khách
                   </Button>
               )}
-
+ 
               {/* CASE 3: Đã lên xe (Boarded) -> Hiện dấu tích */}
                   {item.status === 'boarded' && (
                       <Tag color="purple" icon={<CheckCircleFilled />}>Đã lên xe</Tag>

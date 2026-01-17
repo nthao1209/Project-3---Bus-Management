@@ -82,48 +82,49 @@ export default function AdminDashboard() {
     : dummyChartData;
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <h2 className="text-2xl font-bold mb-6 text-gray-800">Dashboard Quản Trị</h2>
+    <div className="p-4 md:p-6 bg-gray-50 min-h-screen">
+      <h2 className="text-xl md:text-2xl font-bold mb-6 text-gray-800">Dashboard Quản Trị</h2>
 
-      <Row gutter={[16, 16]} className="mb-6">
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} className="shadow-sm hover:shadow-md transition">
+      {/* Grid Layout Tối ưu Mobile (xs=12: 2 cột, hoặc xs=24: 1 cột) */}
+      <Row gutter={[12, 12]} className="mb-6">
+        <Col xs={12} sm={12} lg={6}>
+          <Card bordered={false} className="shadow-sm hover:shadow-md transition" bodyStyle={{ padding: '16px' }}>
             <Statistic
               title="Tổng Doanh Thu"
               value={stats?.totalRevenue || 0}
               precision={0}
-              valueStyle={{ color: '#3f8600', fontWeight: 'bold' }}
+              valueStyle={{ color: '#3f8600', fontWeight: 'bold', fontSize: '1.2rem' }}
               prefix={<DollarOutlined />}
-              suffix="₫"
+              suffix={<span className="text-sm text-gray-400">₫</span>}
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} className="shadow-sm hover:shadow-md transition">
+        <Col xs={12} sm={12} lg={6}>
+          <Card bordered={false} className="shadow-sm hover:shadow-md transition" bodyStyle={{ padding: '16px' }}>
             <Statistic
-              title="Người dùng hệ thống"
+              title="Người dùng"
               value={stats?.totalUsers || 0}
-              valueStyle={{ color: '#1890ff', fontWeight: 'bold' }}
+              valueStyle={{ color: '#1890ff', fontWeight: 'bold', fontSize: '1.2rem' }}
               prefix={<UserOutlined />}
             />
           </Card>   
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} className="shadow-sm hover:shadow-md transition">
+        <Col xs={12} sm={12} lg={6}>
+          <Card bordered={false} className="shadow-sm hover:shadow-md transition" bodyStyle={{ padding: '16px' }}>
             <Statistic
-              title="Nhà xe đối tác"
+              title="Nhà xe"
               value={stats?.totalCompanies || 0}
-              valueStyle={{ color: '#cf1322', fontWeight: 'bold' }}
+              valueStyle={{ color: '#cf1322', fontWeight: 'bold', fontSize: '1.2rem' }}
               prefix={<ShopOutlined />}
             />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card bordered={false} className="shadow-sm hover:shadow-md transition">
+        <Col xs={12} sm={12} lg={6}>
+          <Card bordered={false} className="shadow-sm hover:shadow-md transition" bodyStyle={{ padding: '16px' }}>
             <Statistic
-              title="Chuyến đi hoạt động"
+              title="Chuyến đi"
               value={stats?.totalTrips || 0}
-              valueStyle={{ color: '#faad14', fontWeight: 'bold' }}
+              valueStyle={{ color: '#faad14', fontWeight: 'bold', fontSize: '1.2rem' }}
               prefix={<CarOutlined />}
             />
           </Card>
@@ -136,53 +137,55 @@ export default function AdminDashboard() {
             title="Biểu đồ doanh thu (7 ngày gần nhất)" 
             bordered={false} 
             className="shadow-sm"
-            bodyStyle={{ height: 400 }} 
+            bodyStyle={{ padding: '10px 0 10px 0', height: 400 }} 
           >
             {chartData.every(d => d.revenue === 0) && stats?.revenueChart ? (
                <div className="h-full flex flex-col justify-center items-center">
                   <Empty description="Chưa có dữ liệu doanh thu tuần này" />
                </div>
             ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#2474E5" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#2474E5" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
-                  
-                  <XAxis 
-                    dataKey="date" 
-                    tickFormatter={formatXAxis}
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#666', fontSize: 12 }}
-                    dy={10}
-                  />
-                  
-                  <YAxis 
-                    tickFormatter={formatYAxis}
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#666', fontSize: 12 }}
-                  />
-                  
-                  <Tooltip content={<CustomTooltip />} />
-                  
-                  <Area 
-                    type="monotone" 
-                    dataKey="revenue" 
-                    stroke="#2474E5" 
-                    strokeWidth={3}
-                    fillOpacity={1} 
-                    fill="url(#colorRevenue)" 
-                    activeDot={{ r: 6, strokeWidth: 0 }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              <div className="h-full w-full pr-4 text-xs">
+                <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+                    <defs>
+                        <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#2474E5" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#2474E5" stopOpacity={0}/>
+                        </linearGradient>
+                    </defs>
+                    
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                    
+                    <XAxis 
+                        dataKey="date" 
+                        tickFormatter={formatXAxis}
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#666', fontSize: 10 }}
+                        dy={10}
+                    />
+                    
+                    <YAxis 
+                        tickFormatter={formatYAxis}
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#666', fontSize: 10 }}
+                    />
+                    
+                    <Tooltip content={<CustomTooltip />} />
+                    
+                    <Area 
+                        type="monotone" 
+                        dataKey="revenue" 
+                        stroke="#2474E5" 
+                        strokeWidth={3}
+                        fillOpacity={1} 
+                        fill="url(#colorRevenue)" 
+                        activeDot={{ r: 6, strokeWidth: 0 }}
+                    />
+                    </AreaChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </Card>
         </Col>

@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Table, Card, Input, Button, Space, Tooltip } from 'antd';
+import React, { useState, useMemo } from 'react';
+import { Table, Card, Input, Button, Space, Tooltip, Grid, List } from 'antd';
 import { SearchOutlined, ReloadOutlined, PlusOutlined } from '@ant-design/icons';
 import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
+
+const { useBreakpoint } = Grid;
 
 interface DataTableProps<T extends { _id?: string }> {
   title?: React.ReactNode;
@@ -9,20 +11,18 @@ interface DataTableProps<T extends { _id?: string }> {
   dataSource: T[];
   loading?: boolean;
 
-  /** actions */
   onReload?: () => void;
   onAdd?: () => void;
 
-  /** search */
   searchPlaceholder?: string;
-  searchFields?: string[]; // HỖ TRỢ NESTED FIELD
+  searchFields?: string[];
 
-  /** table */
   pagination?: TablePaginationConfig;
   extraButtons?: React.ReactNode;
+
+  renderMobileItem?: (item: T) => React.ReactNode; 
 }
 
-/** Helper: lấy value theo path vd: routeId.name */
 const getValueByPath = (obj: any, path: string) =>
   path.split('.').reduce((acc, key) => acc?.[key], obj);
 
@@ -37,15 +37,16 @@ function DataTable<T extends { _id?: string }>({
   searchFields = [],
   pagination,
   extraButtons,
+  renderMobileItem,
 }: DataTableProps<T>) {
   const [searchText, setSearchText] = useState('');
+ 
+  const screens = useBreakpoint(); 
+  const isMobile = !screens.md; 
 
-  /** Filter + Search (memo để tối ưu) */
   const filteredData = useMemo(() => {
     if (!searchText) return dataSource;
-
     const keyword = searchText.toLowerCase();
-
     return dataSource.filter(item =>
       searchFields.some(field => {
         const val = getValueByPath(item, field);
@@ -58,19 +59,17 @@ function DataTable<T extends { _id?: string }>({
     <Card
       title={title}
       style={{ marginBottom: 20 }}
-      styles={{ body: { padding: 12 } }}
+      styles={{ body: { padding: isMobile ? 12 : 24 } }}
     >
-      {/* TOOLBAR */}
       <div
         style={{
           marginBottom: 16,
           display: 'flex',
+          flexDirection: isMobile ? 'column' : 'row', 
           justifyContent: 'space-between',
-          flexWrap: 'wrap',
-          gap: 8,
+          gap: 12,
         }}
       >
-        {/* SEARCH */}
         {searchFields.length > 0 && (
           <Input
             allowClear
@@ -78,12 +77,11 @@ function DataTable<T extends { _id?: string }>({
             placeholder={searchPlaceholder}
             value={searchText}
             onChange={e => setSearchText(e.target.value)}
-            style={{ maxWidth: 320 }}
+            style={{ width: isMobile ? '100%' : 320 }} 
           />
         )}
 
-        {/* ACTIONS */}
-        <Space wrap>
+        <Space wrap style={{ justifyContent: isMobile ? 'flex-end' : 'flex-start', width: isMobile ? '100%' : 'auto' }}>
           {onReload && (
             <Tooltip title="Tải lại">
               <Button icon={<ReloadOutlined />} onClick={onReload} />
@@ -100,23 +98,40 @@ function DataTable<T extends { _id?: string }>({
         </Space>
       </div>
 
-      {/* TABLE */}
-      <Table
-        rowKey={(record) => record._id as string}
-        columns={columns}
-        dataSource={filteredData}
-        loading={loading}
-        bordered
-        scroll={{ x: 900 }}
-        pagination={
-          pagination ?? {
-            defaultPageSize: 10,
-            showSizeChanger: true,
-            pageSizeOptions: ['5', '10', '20'],
-            size: 'small',
+      {isMobile && renderMobileItem ? (
+        <List
+          loading={loading}
+          dataSource={filteredData}
+          pagination={{
+            simple: true,
+            position: 'bottom', 
+          }}
+
+          renderItem={(item) => (
+            <div style={{ marginBottom: 12 }}>
+               {renderMobileItem(item)}
+            </div>
+          )}
+        />
+      ) : (
+        <Table
+          rowKey={(record) => record._id as string}
+          columns={columns}
+          dataSource={filteredData}
+          loading={loading}
+          bordered
+          size={isMobile ? 'small' : 'middle'} 
+          scroll={{ x: 900 }}
+          pagination={
+            pagination ?? {
+              defaultPageSize: 10,
+              showSizeChanger: true,
+              pageSizeOptions: ['5', '10', '20'],
+              size: 'small',
+            }
           }
-        }
-      />
+        />
+      )}
     </Card>
   );
 }

@@ -1,9 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Button, Space, Tag, message, Tabs } from 'antd';
-import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons';
+import { Button, Space, Tag, message, Tabs, Card, Typography } from 'antd';
+import { 
+  CheckCircleOutlined, CloseCircleOutlined, 
+  PhoneOutlined, UserOutlined, CalendarOutlined 
+} from '@ant-design/icons';
 import DataTable from '@/components/DataTable';
+
+const { Text } = Typography;
 
 interface Company {
   _id: string;
@@ -34,25 +39,21 @@ export default function CompaniesPage() {
   };
 
   const fetchActiveCompanies = async () => {
-  try {
-    setLoadingActive(true);
-
-    const resActive = await fetch('/api/admin/companies?status=active');
-    const activeData = await resActive.json();
-
-    const resInactive = await fetch('/api/admin/companies?status=inactive');
-    const inactiveData = await resInactive.json();
-
-    if (activeData.success && inactiveData.success) {
-      setActiveCompanies([...activeData.data, ...inactiveData.data]);
+    try {
+      setLoadingActive(true);
+      const resActive = await fetch('/api/admin/companies?status=active');
+      const activeData = await resActive.json();
+      const resInactive = await fetch('/api/admin/companies?status=inactive');
+      const inactiveData = await resInactive.json();
+      if (activeData.success && inactiveData.success) {
+        setActiveCompanies([...activeData.data, ...inactiveData.data]);
+      }
+    } catch (error) {
+      message.error('Không thể tải dữ liệu nhà xe đã duyệt');
+    } finally {
+      setLoadingActive(false);
     }
-  } catch (error) {
-    message.error('Không thể tải dữ liệu nhà xe đã duyệt');
-  } finally {
-    setLoadingActive(false);
-  }
-};
-
+  };
 
   useEffect(() => {
     fetchPendingCompanies();
@@ -78,6 +79,7 @@ export default function CompaniesPage() {
     }
   };
 
+  // --- CẤU HÌNH CỘT CHO PC (Giữ nguyên) ---
   const columns = [
     { title: 'Tên nhà xe', dataIndex: 'name', key: 'name', render: (text: string) => <b className="text-blue-600">{text}</b> },
     { title: 'Hotline', dataIndex: 'hotline', key: 'hotline' },
@@ -92,12 +94,8 @@ export default function CompaniesPage() {
       key: 'action',
       render: (_: any, record: Company) => (
         <Space>
-          <Button type="primary" size="small" icon={<CheckCircleOutlined />} onClick={() => handleApprove(record._id, 'active')} className="bg-green-600 hover:bg-green-500">
-            Duyệt
-          </Button>
-          <Button danger size="small" icon={<CloseCircleOutlined />} onClick={() => handleApprove(record._id, 'inactive')}>
-            Từ chối
-          </Button>
+          <Button type="primary" size="small" icon={<CheckCircleOutlined />} onClick={() => handleApprove(record._id, 'active')} className="bg-green-600 hover:bg-green-500">Duyệt</Button>
+          <Button danger size="small" icon={<CloseCircleOutlined />} onClick={() => handleApprove(record._id, 'inactive')}>Từ chối</Button>
         </Space>
       ),
     },
@@ -115,31 +113,70 @@ export default function CompaniesPage() {
     },
   ];
 
+  // --- RENDERING CHO MOBILE (Mới thêm) ---
+  
+  // 1. Mobile view cho danh sách Chờ duyệt
+  const renderPendingMobile = (item: Company) => (
+    <Card 
+      size="small"
+      title={<span className="text-blue-600 font-bold">{item.name}</span>}
+      className="border border-gray-200 shadow-sm"
+      actions={[
+        <Button key="approve" type="text" className="text-green-600 font-medium" icon={<CheckCircleOutlined />} onClick={() => handleApprove(item._id, 'active')}>Duyệt</Button>,
+        <Button key="reject" type="text" danger icon={<CloseCircleOutlined />} onClick={() => handleApprove(item._id, 'inactive')}>Từ chối</Button>
+      ]}
+    >
+      <div className="flex flex-col gap-2 text-gray-600">
+        <div className="flex items-center gap-2"><UserOutlined /> <span>Chủ: {item.ownerName}</span></div>
+        <div className="flex items-center gap-2"><PhoneOutlined /> <span>Hotline: {item.hotline}</span></div>
+        <div className="flex items-center gap-2"><CalendarOutlined /> <span>Đk: {new Date(item.createdAt).toLocaleDateString('vi-VN')}</span></div>
+      </div>
+    </Card>
+  );
+
+  // 2. Mobile view cho danh sách Đã duyệt
+  const renderActiveMobile = (item: Company) => (
+    <Card 
+      size="small"
+      title={<span className="text-blue-600 font-bold">{item.name}</span>}
+      extra={<Tag color={item.status === 'active' ? 'green' : 'red'}>{item.status === 'active' ? 'Hoạt động' : 'Dừng'}</Tag>}
+      className="border border-gray-200 shadow-sm"
+    >
+       <div className="flex flex-col gap-2 text-gray-600">
+        <div className="flex items-center gap-2"><UserOutlined /> <span className="font-medium">{item.ownerName}</span></div>
+        <div className="flex items-center gap-2"><PhoneOutlined /> <a href={`tel:${item.hotline}`} className="text-blue-500">{item.hotline}</a></div>
+        <div className="flex items-center gap-2 text-xs text-gray-400"><CalendarOutlined /> <span>{new Date(item.createdAt).toLocaleDateString('vi-VN')}</span></div>
+      </div>
+    </Card>
+  );
+
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <h2 className="text-2xl font-bold mb-6 text-gray-800">Quản lý Nhà xe</h2>
+    <div className="p-4 md:p-6 bg-gray-50 min-h-screen">
+      <h2 className="text-xl md:text-2xl font-bold mb-4 md:mb-6 text-gray-800">Quản lý Nhà xe</h2>
 
       <Tabs defaultActiveKey="1">
         <Tabs.TabPane tab="Chờ duyệt" key="1">
           <DataTable
-            title="Danh sách nhà xe chờ duyệt"
+            title="Danh sách chờ duyệt"
             columns={pendingColumns}
             dataSource={pendingCompanies}
             loading={loadingPending}
             onReload={fetchPendingCompanies}
             searchFields={['name', 'ownerName', 'hotline']}
-            searchPlaceholder="Tìm kiếm nhà xe..."
+            searchPlaceholder="Tìm tên, hotline..."
+            renderMobileItem={renderPendingMobile} // <-- Truyền prop này
           />
         </Tabs.TabPane>
         <Tabs.TabPane tab="Đã duyệt" key="2">
           <DataTable
-            title="Danh sách nhà xe đã duyệt"
+            title="Danh sách đã duyệt"
             columns={activeColumns}
             dataSource={activeCompanies}
             loading={loadingActive}
             onReload={fetchActiveCompanies}
             searchFields={['name', 'ownerName', 'hotline']}
-            searchPlaceholder="Tìm kiếm nhà xe..."
+            searchPlaceholder="Tìm tên, hotline..."
+            renderMobileItem={renderActiveMobile} // <-- Truyền prop này
           />
         </Tabs.TabPane>
       </Tabs>

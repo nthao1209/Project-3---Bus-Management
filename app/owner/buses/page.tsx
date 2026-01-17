@@ -3,11 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Button, Modal, Form, Input, Select, 
-  InputNumber, Tag, message, Space, Popconfirm, Tooltip 
+  InputNumber, Tag, message, Space, Popconfirm, Tooltip, Card 
 } from 'antd';
 import { 
   PlusOutlined, EditOutlined, DeleteOutlined, 
-  CarOutlined, WifiOutlined 
+  CarOutlined, ShopOutlined, UsergroupAddOutlined, AppstoreOutlined 
 } from '@ant-design/icons';
 import DataTable from '@/components/DataTable';
 
@@ -19,7 +19,7 @@ interface Bus {
   seatLayout: {
     totalSeats: number;
     totalFloors: number;
-    schema: string[][]; // Thêm định nghĩa schema
+    schema: string[][]; 
   };
   amenities: string[];
   status: 'active' | 'maintenance';
@@ -44,19 +44,15 @@ const BUS_TYPES = [
   'Cung điện di động',
 ];
 
-// --- HÀM HỖ TRỢ SINH SƠ ĐỒ GHẾ MẶC ĐỊNH ---
-// Tạo ra mảng 2 chiều, mỗi hàng 4 ghế: [['01','02','03','04'], ['05'...]...]
 const generateDefaultSchema = (totalSeats: number) => {
   const schema: string[][] = [];
   let currentRow: string[] = [];
-  const seatsPerRow = 4; // Giả định mặc định 4 ghế/hàng
+  const seatsPerRow = 4; 
 
   for (let i = 1; i <= totalSeats; i++) {
-    // Tạo mã ghế: 1 -> "01", 10 -> "10"
     const seatCode = i < 10 ? `0${i}` : `${i}`;
     currentRow.push(seatCode);
 
-    // Nếu đủ 1 hàng hoặc là ghế cuối cùng thì push vào schema
     if (currentRow.length === seatsPerRow || i === totalSeats) {
       schema.push(currentRow);
       currentRow = [];
@@ -74,7 +70,6 @@ export default function BusManagementPage() {
   const [editingBus, setEditingBus] = useState<Bus | null>(null);
   const [form] = Form.useForm();
 
-  // 1. Fetch dữ liệu
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -105,12 +100,9 @@ export default function BusManagementPage() {
     fetchData();
   }, []);
 
-  // 2. Xử lý Submit (QUAN TRỌNG: Đã sửa phần tạo schema)
   const handleSubmit = async (values: any) => {
     try {
       const totalSeats = values.totalSeats;
-      
-      // Tự động sinh sơ đồ ghế nếu người dùng chưa vẽ (hiện tại chưa có tool vẽ nên luôn auto)
       const generatedSchema = generateDefaultSchema(totalSeats);
 
       const payload = {
@@ -118,7 +110,7 @@ export default function BusManagementPage() {
         seatLayout: {
           totalSeats: totalSeats,
           totalFloors: values.totalFloors || 1,
-          schema: generatedSchema // <--- Gửi schema đầy đủ lên Server
+          schema: generatedSchema 
         }
       };
 
@@ -175,6 +167,7 @@ export default function BusManagementPage() {
     setIsModalOpen(true);
   };
 
+  // --- CẤU HÌNH CỘT CHO PC ---
   const columns = [
     {
       title: 'Biển số',
@@ -200,7 +193,6 @@ export default function BusManagementPage() {
       render: (layout: any) => (
         <div className="text-xs">
            <div>Active: {layout?.totalSeats} ghế</div>
-           {/* Hiển thị nhanh trạng thái schema */}
            <div className="text-gray-400">
              {layout?.schema?.length > 0 ? '(Đã có sơ đồ)' : '(Chưa có sơ đồ)'}
            </div>
@@ -235,18 +227,9 @@ export default function BusManagementPage() {
       render: (_: any, record: Bus) => (
         <Space>
           <Tooltip title="Chỉnh sửa">
-            <Button 
-              icon={<EditOutlined />} 
-              size="small" 
-              onClick={() => openEditModal(record)} 
-            />
+            <Button icon={<EditOutlined />} size="small" onClick={() => openEditModal(record)} />
           </Tooltip>
-          <Popconfirm 
-            title="Xóa xe này?" 
-            onConfirm={() => handleDelete(record._id)}
-            okText="Xóa"
-            cancelText="Hủy"
-          >
+          <Popconfirm title="Xóa xe này?" onConfirm={() => handleDelete(record._id)} okText="Xóa" cancelText="Hủy">
             <Button danger icon={<DeleteOutlined />} size="small" />
           </Popconfirm>
         </Space>
@@ -254,9 +237,49 @@ export default function BusManagementPage() {
     },
   ];
 
+  // --- RENDER MOBILE ITEM ---
+  const renderMobileItem = (item: Bus) => (
+    <Card 
+      size="small"
+      title={<span className="font-bold text-blue-700">{item.plateNumber}</span>}
+      extra={item.status === 'active' ? <Tag color="green">Hoạt động</Tag> : <Tag color="red">Bảo trì</Tag>}
+      className="border border-gray-200 shadow-sm"
+      actions={[
+         <Button key="edit" type="text" icon={<EditOutlined />} onClick={() => openEditModal(item)}>Sửa</Button>,
+         <Popconfirm key="del" title="Xóa?" onConfirm={() => handleDelete(item._id)}>
+             <Button type="text" danger icon={<DeleteOutlined />}>Xóa</Button>
+         </Popconfirm>
+      ]}
+    >
+       <div className="flex flex-col gap-2 text-gray-600">
+          <div className="flex items-center gap-2">
+             <ShopOutlined /> 
+             <span className="font-medium">{(item.companyId as any)?.name || '---'}</span>
+          </div>
+          <div className="flex items-center gap-2">
+             <CarOutlined /> 
+             <span>{item.type}</span>
+          </div>
+          <div className="flex items-center gap-2">
+             <UsergroupAddOutlined /> 
+             <span>{item.seatLayout?.totalSeats} ghế ({item.seatLayout?.totalFloors} tầng)</span>
+          </div>
+          <div className="flex items-start gap-2">
+             <AppstoreOutlined className="mt-1" />
+             <div className="flex flex-wrap gap-1">
+                {item.amenities?.length > 0 
+                  ? item.amenities.map((a, idx) => <Tag key={idx} className="text-[10px] m-0">{a}</Tag>)
+                  : <span className="text-gray-400 italic text-xs">Không có tiện ích</span>
+                }
+             </div>
+          </div>
+       </div>
+    </Card>
+  );
+
   return (
-    <div className="p-6 bg-white rounded-lg shadow-sm">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-4 md:p-6 bg-white rounded-lg shadow-sm">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-3">
         <div>
            <h2 className="text-xl font-bold text-gray-800">Quản lý Đội xe</h2>
            <p className="text-gray-500 text-sm">Quản lý danh sách xe và cấu hình ghế</p>
@@ -265,6 +288,7 @@ export default function BusManagementPage() {
           type="primary" 
           icon={<PlusOutlined />} 
           size="large"
+          className="w-full md:w-auto"
           onClick={() => {
             setEditingBus(null);
             form.resetFields();
@@ -286,6 +310,7 @@ export default function BusManagementPage() {
         searchFields={['plateNumber', 'type']}
         searchPlaceholder="Tìm biển số..."
         pagination={{ pageSize: 10 }}
+        renderMobileItem={renderMobileItem} // <-- TRUYỀN HÀM RENDER MOBILE
       />
 
       <Modal
@@ -301,6 +326,7 @@ export default function BusManagementPage() {
         width={700}
         okText={editingBus ? "Cập nhật" : "Thêm mới"}
         cancelText="Hủy"
+        centered
       >
         <Form 
             form={form} 
@@ -312,7 +338,7 @@ export default function BusManagementPage() {
                 totalSeats: 40
             }}
         >
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
                 <Form.Item 
                     name="companyId" 
@@ -336,7 +362,6 @@ export default function BusManagementPage() {
                         label="Số ghế" 
                         className="w-full"
                         rules={[{ required: true, message: 'Nhập số ghế' }]}
-                        help="Hệ thống sẽ tự động tạo sơ đồ ghế mặc định"
                     >
                         <InputNumber min={4} max={60} className="w-full" />
                     </Form.Item>

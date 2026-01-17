@@ -1,7 +1,13 @@
 'use client';
+
 import React, { useState, useEffect } from 'react';
-import { Button, Switch, message, Avatar, Space, Popconfirm } from 'antd';
-import { UserOutlined, PlusOutlined, ReloadOutlined, DeleteOutlined } from '@ant-design/icons';
+import { 
+  Button, Switch, message, Avatar, Space, Popconfirm, Card, Tag 
+} from 'antd';
+import { 
+  UserOutlined, DeleteOutlined, MailOutlined, 
+  PhoneOutlined, CalendarOutlined, SafetyCertificateOutlined 
+} from '@ant-design/icons';
 import DataTable from '@/components/DataTable';
 
 export default function UserManagementPage() {
@@ -32,7 +38,8 @@ export default function UserManagementPage() {
       });
       if (res.ok) {
         message.success('Đã cập nhật trạng thái');
-        fetchUsers();
+        // Cập nhật state local ngay lập tức để UI phản hồi nhanh
+        setUsers(prev => prev.map(u => u._id === id ? { ...u, isActive: !currentStatus } : u));
       } else {
         message.error('Cập nhật thất bại');
       }
@@ -56,6 +63,7 @@ export default function UserManagementPage() {
     }
   };
 
+  // --- COLUMN CHO PC ---
   const columns = [
     { 
       title: 'Khách hàng', key: 'name', 
@@ -72,10 +80,10 @@ export default function UserManagementPage() {
     { title: 'SĐT', dataIndex: 'phone', key: 'phone' },
     { title: 'Ngày tham gia', dataIndex: 'createdAt', key: 'createdAt', render: (d: string) => new Date(d).toLocaleDateString('vi-VN') },
     {
-    title: 'Role',
-    dataIndex: 'role',
-    key: 'role',
-    render: (role: string) => <span className="capitalize">{role}</span>
+      title: 'Role',
+      dataIndex: 'role',
+      key: 'role',
+      render: (role: string) => <Tag color={role === 'admin' ? 'red' : 'blue'}>{role.toUpperCase()}</Tag>
     },
     { 
       title: 'Trạng thái', 
@@ -95,30 +103,87 @@ export default function UserManagementPage() {
       key: 'action',
       render: (_: any, r: any) => (
         <Popconfirm
-          title={`Bạn có chắc chắn muốn xóa ${r.name}?`}
+          title={`Xóa ${r.name}?`}
           onConfirm={() => handleDelete(r._id)}
           okText="Xóa"
           cancelText="Hủy"
         >
-          <Button danger icon={<DeleteOutlined />} size="small">
-            Xóa
-          </Button>
+          <Button danger icon={<DeleteOutlined />} size="small">Xóa</Button>
         </Popconfirm>
       )
     }
   ];
 
+  // --- RENDER MOBILE ITEM ---
+  const renderMobileItem = (item: any) => (
+    <Card 
+      size="small" 
+      className="shadow-sm border-gray-200"
+      bodyStyle={{ padding: '12px' }}
+    >
+        <div className="flex items-start justify-between mb-3">
+            <div className="flex items-center gap-3">
+                <Avatar 
+                    size={48} 
+                    icon={<UserOutlined />} 
+                    src={item.avatar} 
+                    className="bg-blue-100 text-blue-600"
+                />
+                <div>
+                    <div className="font-bold text-base text-gray-800">{item.name}</div>
+                    <div className="text-xs text-gray-500 flex items-center gap-1">
+                        <MailOutlined /> {item.email}
+                    </div>
+                </div>
+            </div>
+            <Tag color={item.role === 'admin' ? 'red' : 'blue'}>{item.role}</Tag>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 bg-gray-50 p-2 rounded mb-3">
+            <div className="flex items-center gap-2">
+                <PhoneOutlined /> <span>{item.phone || '---'}</span>
+            </div>
+            <div className="flex items-center gap-2">
+                <CalendarOutlined /> <span>{new Date(item.createdAt).toLocaleDateString('vi-VN')}</span>
+            </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+            <div className="flex items-center gap-2">
+                <span className="text-xs text-gray-400">Trạng thái:</span>
+                <Switch 
+                    checked={item.isActive} 
+                    size="small"
+                    onChange={() => toggleStatus(item._id, item.isActive)}
+                    className={item.isActive ? "bg-green-500" : "bg-red-500"}
+                />
+            </div>
+            
+            <Popconfirm
+                title="Xóa tài khoản này?"
+                onConfirm={() => handleDelete(item._id)}
+                okText="Xóa"
+                cancelText="Hủy"
+            >
+                <Button type="text" danger icon={<DeleteOutlined />} size="small">
+                    Xóa
+                </Button>
+            </Popconfirm>
+        </div>
+    </Card>
+  );
+
   return (
-    <div className="p-6 bg-white rounded-lg">
+    <div className="p-4 md:p-6 bg-white rounded-lg min-h-screen">
       <DataTable
-        title="Quản lý Khách hàng"
+        title={<span className="text-xl font-bold">Quản lý Khách hàng</span>}
         columns={columns}
         dataSource={users}
         loading={loading}
         onReload={fetchUsers}
-        searchFields={['name', 'email', 'phone','role']}
+        searchFields={['name', 'email', 'phone', 'role']}
         searchPlaceholder="Tìm kiếm khách hàng..."
-        extraButtons={null}
+        renderMobileItem={renderMobileItem} // <-- TRUYỀN HÀM RENDER MOBILE
       />
     </div>
   );

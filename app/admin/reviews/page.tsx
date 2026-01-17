@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Table, Rate, Button, Modal, Input, message, Tag, Space, Card, Tooltip } from 'antd';
-import { WarningOutlined, SendOutlined, ReloadOutlined, BellOutlined } from '@ant-design/icons';
+import { Table, Rate, Button, Modal, Input, message, Tag, Space, Card, Tooltip, Grid, List } from 'antd';
+import { WarningOutlined, SendOutlined, ReloadOutlined, BellOutlined, StarFilled } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+
+const { useBreakpoint } = Grid;
 
 // 1. Định nghĩa kiểu dữ liệu (Interface)
 interface CompanyStats {
@@ -16,12 +18,13 @@ interface CompanyStats {
 }
 
 export default function AdminReviewsPage() {
+  const screens = useBreakpoint(); // Hook check mobile
   const [data, setData] = useState<CompanyStats[]>([]);
   const [loading, setLoading] = useState(true);
   
   // State cho Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [submitting, setSubmitting] = useState(false); // Loading khi đang gửi
+  const [submitting, setSubmitting] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<CompanyStats | null>(null);
   const [warningMsg, setWarningMsg] = useState('');
 
@@ -81,7 +84,7 @@ export default function AdminReviewsPage() {
       if (res.ok) {
         message.success('Đã gửi thông báo đến chủ xe');
         setIsModalOpen(false);
-        setWarningMsg(''); // Reset nội dung
+        setWarningMsg(''); 
       } else {
         message.error(json.message || 'Gửi thất bại');
       }
@@ -92,7 +95,7 @@ export default function AdminReviewsPage() {
     }
   };
 
-  // Cấu hình cột bảng
+  // --- CỘT BẢNG (CHO PC) ---
   const columns: ColumnsType<CompanyStats> = [
     {
       title: 'Nhà xe',
@@ -162,27 +165,79 @@ export default function AdminReviewsPage() {
     }
   ];
 
+  // --- RENDER CARD (CHO MOBILE) ---
+  const renderMobileItem = (item: CompanyStats) => {
+    let statusTag = <Tag color="green">Tốt</Tag>;
+    if (item.totalReviews === 0) statusTag = <Tag>Chưa có đánh giá</Tag>;
+    else if (item.avgRating < 3) statusTag = <Tag color="red">Nguy cơ cao</Tag>;
+    else if (item.avgRating < 4) statusTag = <Tag color="orange">Cần cải thiện</Tag>;
+
+    return (
+        <Card size="small" className="mb-3 shadow-sm" bodyStyle={{ padding: '12px' }}>
+            <div className="flex justify-between items-start mb-2">
+                <span className="font-bold text-blue-700 text-lg">{item.companyName}</span>
+                {statusTag}
+            </div>
+            
+            <div className="flex justify-between items-center mb-3">
+                 <div className="flex flex-col">
+                    <span className="text-xs text-gray-500">Đánh giá</span>
+                    <span className="font-medium text-gray-700">{item.totalReviews} lượt</span>
+                 </div>
+                 <div className="flex flex-col items-end">
+                    <span className="text-xs text-gray-500">Điểm</span>
+                    <div className="flex items-center gap-1">
+                        <span className="font-bold text-lg text-yellow-500">{item.avgRating.toFixed(1)}</span>
+                        <StarFilled className="text-yellow-400" />
+                    </div>
+                 </div>
+            </div>
+
+            <Button 
+                danger 
+                block
+                icon={<WarningOutlined />}
+                onClick={() => handleOpenWarning(item)}
+            >
+                Gửi cảnh báo
+            </Button>
+        </Card>
+    );
+  };
+
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="flex justify-between items-center mb-6">
+    <div className="p-4 md:p-6 bg-gray-50 min-h-screen">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-3">
         <div>
-            <h2 className="text-2xl font-bold text-gray-800 m-0">Giám sát chất lượng</h2>
-            <p className="text-gray-500">Theo dõi đánh giá và gửi cảnh báo tới các nhà xe</p>
+            <h2 className="text-xl md:text-2xl font-bold text-gray-800 m-0">Giám sát chất lượng</h2>
+            <p className="text-sm text-gray-500">Theo dõi đánh giá và gửi cảnh báo tới các nhà xe</p>
         </div>
-        <Button icon={<ReloadOutlined />} onClick={fetchData} loading={loading}>
+        <Button icon={<ReloadOutlined />} onClick={fetchData} loading={loading} className="w-full md:w-auto">
             Làm mới
         </Button>
       </div>
       
-      <Card bordered={false} className="shadow-sm">
-        <Table 
-            columns={columns} 
-            dataSource={data} 
-            rowKey="companyId"
+      {/* Hiển thị Responsive */}
+      {!screens.md ? (
+        // Mobile View
+        <List 
+            dataSource={data}
             loading={loading}
-            pagination={{ pageSize: 10 }}
+            renderItem={renderMobileItem}
+            locale={{ emptyText: 'Chưa có dữ liệu' }}
         />
-      </Card>
+      ) : (
+        // Desktop View
+        <Card bordered={false} className="shadow-sm">
+            <Table 
+                columns={columns} 
+                dataSource={data} 
+                rowKey="companyId"
+                loading={loading}
+                pagination={{ pageSize: 10 }}
+            />
+        </Card>
+      )}
 
       <Modal
         title={
@@ -194,8 +249,10 @@ export default function AdminReviewsPage() {
         onCancel={() => setIsModalOpen(false)}
         onOk={sendWarning}
         okText="Gửi ngay"
-        confirmLoading={submitting} // Hiển thị loading trên nút OK
+        confirmLoading={submitting} 
         okButtonProps={{ danger: true, icon: <SendOutlined /> }}
+        centered
+        width={400} // Modal nhỏ gọn hơn cho mobile
       >
         <div className="mb-4 bg-gray-50 p-3 rounded border border-gray-200">
             <span className="font-semibold text-gray-700">Gửi tới:</span> 

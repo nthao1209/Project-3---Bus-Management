@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Button, message, Space, Popconfirm, Avatar, Typography 
+  Button, message, Space, Popconfirm, Avatar, Typography, Card 
 } from 'antd';
 import { 
   EditOutlined, DeleteOutlined, 
@@ -25,52 +25,42 @@ interface Company {
   status: 'active' | 'inactive' | 'pending';
 }
 
-
 export default function OwnerCompaniesPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
-
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
-  
-  
   const [editingCompany, setEditingCompany] = useState<Partial<Company> | null>(null);
 
-  // 1. Fetch dữ liệu (Companies)
   const fetchData = async () => {
-  setLoading(true);
-  try {
-    const res = await fetch('/api/owner/companies');
-    const data = await res.json();
-
-    if (data.success) {
-      setCompanies(
-        data.data.map((item: any) => ({
-          ...item,
-          id: item._id,
-        }))
-      );
+    setLoading(true);
+    try {
+      const res = await fetch('/api/owner/companies');
+      const data = await res.json();
+      if (data.success) {
+        setCompanies(
+          data.data.map((item: any) => ({
+            ...item,
+            id: item._id,
+          }))
+        );
+      }
+    } catch {
+      message.error('Lỗi tải dữ liệu');
+    } finally {
+      setLoading(false);
     }
-  } catch {
-    message.error('Lỗi tải dữ liệu');
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   useEffect(() => {
     fetchData();
   }, []);
 
-  // 2. Xử lý Submit
   const handleSubmit = async (values: any) => {
     setSubmitting(true);
     try {
-     
       const isEditMode = editingCompany && editingCompany._id;
-
       const url = isEditMode
         ? `/api/owner/companies/${editingCompany._id}` 
         : '/api/owner/companies';
@@ -82,18 +72,13 @@ export default function OwnerCompaniesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
       });
-
       const json = await res.json();
 
       if (res.ok) {
         message.success(isEditMode ? 'Cập nhật thành công' : 'Đăng ký thành công');
         setIsModalOpen(false);
         setEditingCompany(null);
-        const resList = await fetch('/api/owner/companies');
-        const dataList = await resList.json();
-        if(dataList.success) {
-            setCompanies(dataList.data.map((item: any) => ({...item, id: item._id})));
-        }
+        fetchData();
       } else {
         message.error(json.message || 'Có lỗi xảy ra');
       }
@@ -124,11 +109,11 @@ export default function OwnerCompaniesPage() {
   };
 
   const openCreateModal = () => {
-  
     setEditingCompany(null); 
     setIsModalOpen(true);
   };
 
+  // --- CẤU HÌNH CỘT CHO PC ---
   const columns: ColumnsType<Company> = [
     {
         title: 'Thông tin Nhà xe',
@@ -190,6 +175,45 @@ export default function OwnerCompaniesPage() {
       },
   ];
 
+  // --- RENDER MOBILE ITEM ---
+  const renderMobileItem = (item: Company) => (
+    <Card 
+      size="small"
+      title={
+        <Space>
+           <Avatar shape="square" size="small" icon={<ShopOutlined />} className="bg-blue-100 text-blue-600"/>
+           <span className="font-bold text-gray-800">{item.name}</span>
+        </Space>
+      }
+      className="border border-gray-200 shadow-sm"
+      actions={[
+         <Button key="edit" type="text" icon={<EditOutlined />} onClick={() => openEditModal(item)}>Sửa</Button>,
+         <Popconfirm key="del" title="Xóa?" onConfirm={() => handleDelete(item._id)}>
+             <Button type="text" danger icon={<DeleteOutlined />}>Xóa</Button>
+         </Popconfirm>
+      ]}
+    >
+       <div className="flex flex-col gap-2 text-sm text-gray-600">
+          <div className="flex items-center gap-2">
+             <PhoneOutlined className="text-green-600"/> 
+             <a href={`tel:${item.hotline}`} className="text-gray-800 font-medium">{item.hotline}</a>
+          </div>
+          {item.email && (
+             <div className="flex items-center gap-2">
+                <MailOutlined /> 
+                <span>{item.email}</span>
+             </div>
+          )}
+          {item.address && (
+             <div className="flex items-start gap-2">
+                <EnvironmentOutlined className="mt-1"/> 
+                <span>{item.address}</span>
+             </div>
+          )}
+       </div>
+    </Card>
+  );
+
   return (
     <div className="p-4 bg-gray-50 min-h-screen">
       <DataTable
@@ -197,10 +221,11 @@ export default function OwnerCompaniesPage() {
         columns={columns}
         dataSource={companies}
         loading={loading}
-        onReload={fetchData} // Gọi lại cả 2 API cho chắc
-        onAdd={openCreateModal} // Gọi hàm mở modal có điền sẵn data
+        onReload={fetchData} 
+        onAdd={openCreateModal}
         searchPlaceholder="Tìm tên, hotline, email..."
         searchFields={['name', 'hotline', 'email']}
+        renderMobileItem={renderMobileItem} // <-- TRUYỀN HÀM RENDER MOBILE
       />
 
       <CompanyModal
@@ -209,7 +234,7 @@ export default function OwnerCompaniesPage() {
         initialValues={editingCompany}
         onCancel={() => setIsModalOpen(false)}
         onSubmit={handleSubmit}
-        isLoggedIn={true} // Đã đăng nhập -> Ẩn ô password/fullname user
+        isLoggedIn={true} 
       />
     </div>
   );

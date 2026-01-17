@@ -21,7 +21,7 @@ const themeConfig = {
   components: {
     Button: { colorPrimary: '#FFC700', colorPrimaryHover: '#e0b000', colorPrimaryActive: '#d0a000', colorTextLightSolid: '#000000' },
     Tabs: { itemSelectedColor: '#2474E5', inkBarColor: '#2474E5', itemActiveColor: '#2474E5', titleFontSizeLG: 16 },
-    Select: { controlHeight: 40 }
+    Select: { controlHeight: 32, controlItemBgActive: '#e6f7ff' } 
   },
 };
 
@@ -37,33 +37,24 @@ export default function HeroSearch({ isCompact = false }: { isCompact?: boolean 
   const [date, setDate] = useState<dayjs.Dayjs | null>(dayjs());
   const [returnDate, setReturnDate] = useState<dayjs.Dayjs | null>(null);
 
+  // --- Lấy dữ liệu tỉnh thành ---
   useEffect(() => {
     const fetchProvinces = async () => {
       setLoadingData(true);
       try {
         const res = await fetch('/api/owner/stations?status=active'); 
-        const contentType = res.headers.get('content-type') || '';
-        if (!res.ok) {
-          const text = await res.text().catch(() => '');
-          throw new Error(`Failed to load provinces (status ${res.status}): ${text}`);
-        }
-        if (!contentType.includes('application/json')) {
-          const text = await res.text().catch(() => '');
-          throw new Error('Expected JSON response but received: ' + (text || '[non-JSON response]'));
-        }
-        const data = await res.json();
-
-        if (data.success && Array.isArray(data.data)) {
-          const uniqueProvinces = Array.from(new Set(data.data.map((station: any) => station.province)));
-          const options = uniqueProvinces
-            .sort((a: any, b: any) => a.localeCompare(b))
-            .map((prov: any) => ({ value: prov, label: prov }));
-          setProvinceOptions(options);
+        if (res.ok) {
+           const data = await res.json();
+           if (data.success && Array.isArray(data.data)) {
+             const uniqueProvinces = Array.from(new Set(data.data.map((station: any) => station.province)));
+             const options = uniqueProvinces
+               .sort((a: any, b: any) => a.localeCompare(b))
+               .map((prov: any) => ({ value: prov, label: prov }));
+             setProvinceOptions(options);
+           }
         }
       } catch (error) {
-        console.error("Lỗi lấy dữ liệu tỉnh thành:", error);
-        // Keep UX quiet: provinces are optional for search; show a gentle toast
-        try { message.error('Không tải được danh sách tỉnh thành.'); } catch (e) {}
+        console.error("Lỗi lấy dữ liệu:", error);
       } finally {
         setLoadingData(false);
       }
@@ -71,6 +62,7 @@ export default function HeroSearch({ isCompact = false }: { isCompact?: boolean 
     fetchProvinces();
   }, []);
 
+  // --- Sync URL params ---
   useEffect(() => {
     const from = searchParams.get('from');
     const to = searchParams.get('to');
@@ -101,180 +93,212 @@ export default function HeroSearch({ isCompact = false }: { isCompact?: boolean 
     router.push(`/search?${params.toString()}`);
   };
 
+  const handleSelectChange = (setter: React.Dispatch<React.SetStateAction<string | null>>) => (value: string) => {
+    setter(value);
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  };
+
   const filterOption = (input: string, option?: { label: string; value: string }) => {
     return removeAccents(option?.label ?? '').includes(removeAccents(input));
   };
 
   const tabItems = [{ label: <span className="flex items-center gap-2 font-semibold"><CarOutlined /> Xe khách</span>, key: 'bus' }];
 
-  // Responsive Styles
-  const containerClasses = isCompact 
-    ? "relative w-full bg-white shadow-sm border-b border-gray-200 py-4" 
-    : "absolute top-[60px] md:top-[160px] left-1/2 transform -translate-x-1/2 w-[95%] max-w-6xl z-20"; // Adjusted top for mobile
 
-  const wrapperClasses = isCompact
-    ? "w-full px-3 sm:px-4"
+  const rootContainerClass = isCompact 
+    ? "sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm"
+    : "relative w-full mb-10";
+
+  const formPositionClass = isCompact
+  ? "w-full max-w-[1200px] mx-auto px-4 lg:px-0"
+  : `
+      relative
+      w-[95%]
+      mx-auto
+      -mt-20 
+      z-20
+      md:absolute
+      md:top-1/2
+      md:left-1/2
+      md:-translate-x-1/2
+      md:-translate-y-1/2
+      md:-mt-24
+      md:max-w-6xl
+    `;
+
+  const formBoxClass = isCompact
+    ? ""
     : "bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden";
+
+  const innerLayoutClass = isCompact
+  ? "grid grid-cols-2 gap-1 lg:flex lg:flex-row lg:items-center lg:gap-0 lg:border lg:border-gray-300 lg:rounded-lg lg:p-1 lg:bg-white"
+  : "p-3 sm:p-4 flex flex-col gap-3 md:gap-4 lg:flex-row lg:items-center";
+
+  const inputItemClass = isCompact
+    ? "relative h-[50px] lg:h-[48px] border border-gray-300 rounded-md lg:border-0 lg:rounded-none lg:border-r lg:border-gray-200 flex flex-col justify-center px-2 hover:bg-gray-50 transition"
+    : "border border-gray-300 rounded-lg p-2 hover:border-blue-500 transition bg-white h-[60px] md:h-[70px] flex flex-col justify-center relative";
+
+  const locationItemClass = isCompact ? "col-span-2 lg:flex-1" : "flex-1";
+  const dateItemClass = isCompact ? "col-span-1 lg:w-[180px]" : "lg:w-[180px]";
+  const buttonContainerClass = isCompact ? "col-span-2 lg:w-auto lg:pl-2" : "col-span-2 lg:col-span-1 mt-1 lg:mt-0";
 
   return (
     <ConfigProvider theme={themeConfig} locale={locale}>
-      <div className={isCompact ? "sticky top-0 z-40" : "relative w-full mb-20 md:mb-24"}>
+      <div className={rootContainerClass}>
         
+        {/* Banner */}
         {!isCompact && (
           <div 
-            className="w-full h-[350px] md:h-[500px] bg-cover bg-center bg-no-repeat relative flex flex-col items-center pt-8 md:pt-16"
+            // SỬA: Giảm chiều cao banner mobile xuống 250px (cũ 400px)
+            className="w-full h-[250px] md:h-[550px] bg-cover bg-center bg-no-repeat relative flex flex-col items-center"
             style={{ backgroundColor: '#dceeff', backgroundImage: "url('https://static.vexere.com/production/banners/993/banner-home-tet-2025.png')" }}
           >
-             {/* Overlay for better text contrast on mobile if needed */}
              <div className="absolute inset-0 bg-gradient-to-b from-transparent to-white/20 md:hidden"></div>
+             <div className="hidden md:block bg-black/50 backdrop-blur-md text-white py-3 w-full absolute bottom-0 z-10">
+                <div className="container mx-auto flex justify-center gap-8 lg:gap-16 text-sm font-medium">
+                  <div className="flex items-center gap-2"><SafetyCertificateFilled className="text-yellow-400 text-xl" /><span>Chắc chắn có chỗ</span></div>
+                  <div className="flex items-center gap-2"><PhoneFilled className="text-yellow-400 text-xl" /><span>Hỗ trợ 24/7</span></div>
+                  <div className="flex items-center gap-2"><TagFilled className="text-yellow-400 text-xl" /><span>Nhiều ưu đãi</span></div>
+                  <div className="flex items-center gap-2"><CreditCardFilled className="text-yellow-400 text-xl" /><span>Thanh toán đa dạng</span></div>
+                </div>
+            </div>
           </div>
         )}
 
-        <div className={containerClasses}>
-            <div className={wrapperClasses}>
+        {/* Search Form */}
+        <div className={formPositionClass}>
+            <div className={formBoxClass}>
                 
                 {!isCompact && (
-                   <div className="px-4 md:px-6 pt-2 border-b border-gray-100 flex justify-center md:justify-start">
+                   <div className="px-4 md:px-6 pt-2 border-b border-gray-100 flex justify-center md:justify-start bg-white">
                       <Tabs defaultActiveKey="bus" items={tabItems} size="large" className="font-bold" />
                    </div>
                 )}
 
-                <div className={`p-3 sm:p-4 flex flex-col gap-3 md:gap-4 ${isCompact ? '' : 'lg:flex-row'}`}>
+                <div className={innerLayoutClass}>
                     
-                    {/* AREA 1: LOCATION (Nơi đi & Nơi đến) */}
-                    {/* Trên mobile: xếp chồng dọc, dính liền border. Trên desktop: ngang, dính liền border */}
-                    <div className="flex-1 flex flex-col md:flex-row relative group-inputs">
-                        
-                        {/* Nơi đi */}
-                        <div className="
-                          border border-gray-300 
-                          rounded-t-lg md:rounded-l-lg md:rounded-tr-none md:rounded-br-none
-                          border-b-0 md:border-b md:border-r-0
-                          p-2 hover:border-blue-500 hover:z-10 transition bg-white h-[50px] md:h-[70px] flex flex-col justify-center relative flex-1
-                        ">
-                            <span className="text-[10px] md:text-xs text-gray-500 font-medium ml-3">Nơi xuất phát</span>
-                            <Select
-                                showSearch
-                                variant="borderless"
-                                value={fromProvince}
-                                onChange={setFromProvince}
-                                options={provinceOptions} 
-                                loading={loadingData}
-                                placeholder="Chọn điểm đi"
-                                className="w-full text-sm md:text-base font-bold"
-                                suffixIcon={<EnvironmentFilled className="text-blue-500" />}
-                                filterOption={filterOption} 
-                            />
-                        </div>
+                    {/* Nơi đi + Swap + Nơi đến */}
+                    <div className={`relative col-span-2 lg:flex lg:flex-row lg:items-center lg:flex-1`}>
+                      {/* Nơi đi */}
+                      <div className={`${inputItemClass} flex-1`}>
+                        <span className="text-[11px] text-gray-500 font-medium ml-2 lg:ml-3">Nơi xuất phát</span>
+                        <Select
+                          showSearch
+                          variant="borderless"
+                          value={fromProvince}
+                          onChange={handleSelectChange(setFromProvince)}
+                          options={provinceOptions}
+                          loading={loadingData}
+                          placeholder="Chọn điểm đi"
+                          className="w-full text-sm font-bold !bg-transparent -ml-1 mt-[-2px]"
+                          suffixIcon={<EnvironmentFilled className="text-blue-500" />}
+                          filterOption={filterOption}
+                        />
+                      </div>
 
-                        {/* Nút Swap - Xử lý vị trí Responsive */}
-                        <div className="absolute z-20 
-                            right-4 top-1/2 -translate-y-1/2 
-                            md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:right-auto
-                        ">
-                             <Button 
-                                shape="circle" 
-                                icon={<SwapOutlined className="rotate-90 md:rotate-0" />} 
-                                onClick={handleSwap} 
-                                className="shadow-sm text-blue-600 bg-white border-gray-200 hover:border-blue-500"
-                             />
-                        </div>
+                      {/* Swap */}
+                      <div className={`
+                          flex justify-center items-center my-2 lg:my-0
+                          lg:absolute lg:left-1/2 lg:top-1/2 lg:-translate-x-1/2 lg:-translate-y-1/2 z-30
+                        `}>
+                        <Button
+                          shape="circle"
+                          size={isCompact ? 'small' : 'middle'}
+                          onClick={handleSwap}
+                          icon={<SwapOutlined className="rotate-90 lg:rotate-0" />}
+                          className="shadow-md bg-white border border-gray-300 text-blue-600 hover:border-blue-500 hover:scale-110 transition"
+                        />
+                      </div>
 
-                        {/* Nơi đến */}
-                        <div className="
-                          border border-gray-300 
-                          rounded-b-lg md:rounded-r-lg md:rounded-bl-none md:rounded-tl-none
-                          p-2 hover:border-blue-500 hover:z-10 transition bg-white h-[50px] md:h-[70px] flex flex-col justify-center relative flex-1
-                        ">
-                            <span className="text-[10px] md:text-xs text-gray-500 font-medium ml-3">Nơi đến</span>
-                            <Select
-                                showSearch
-                                variant="borderless"
-                                value={toProvince}
-                                onChange={setToProvince}
-                                options={provinceOptions}
-                                loading={loadingData}
-                                placeholder="Chọn điểm đến"
-                                className="w-full text-sm md:text-base font-bold"
-                                suffixIcon={<EnvironmentFilled className="text-red-500" />}
-                                filterOption={filterOption}
-                            />
-                        </div>
+                      {/* Nơi đến */}
+                      <div className={`${inputItemClass} flex-1`}>
+                        <span className="text-[11px] text-gray-500 font-medium ml-2 lg:ml-3">Nơi đến</span>
+                        <Select
+                          showSearch
+                          variant="borderless"
+                          value={toProvince}
+                          onChange={handleSelectChange(setToProvince)}
+                          options={provinceOptions}
+                          loading={loadingData}
+                          placeholder="Chọn điểm đến"
+                          className="w-full text-sm font-bold !bg-transparent -ml-1 mt-[-2px]"
+                          suffixIcon={<EnvironmentFilled className="text-red-500" />}
+                          filterOption={filterOption}
+                        />
+                      </div>
                     </div>
 
-                    {/* AREA 2: DATE & BUTTON */}
-                    <div className={`${isCompact ? 'flex flex-col gap-2' : 'flex-1 grid grid-cols-2 lg:grid-cols-[1.2fr_1.2fr_1fr] gap-3 md:gap-4'}`}>
-                        
-                        {/* Ngày đi */}
-                        <div className="col-span-1 border border-gray-300 rounded-lg p-2 hover:border-blue-500 transition bg-white h-[60px] md:h-[70px] flex flex-col justify-center">
-                            <span className="text-[10px] md:text-xs text-gray-500 font-medium ml-3">Ngày đi</span>
-                            <DatePicker 
-                                value={date}
-                                onChange={setDate}
-                                format="DD/MM/YYYY"
-                                variant="borderless"
-                                allowClear={false}
-                                className="w-full text-sm md:text-base font-bold p-0 pl-3"
-                                suffixIcon={<CalendarFilled className="text-blue-500" />}
-                                disabledDate={(current) => current && current < dayjs().startOf('day')}
-                            />
-                        </div>
+                    {/* Ngày đi */}
+                    <div className={`${inputItemClass} ${dateItemClass}`}>
+                         <span className="text-[11px] text-gray-500 font-medium ml-2 lg:ml-3 lg:mt-[-4px]">Ngày đi</span>
+                         <DatePicker 
+                             value={date}
+                             onChange={setDate}
+                             format="DD/MM/YYYY"
+                             variant="borderless"
+                             allowClear={false}
+                             className="w-full text-sm font-bold p-0 pl-2 lg:pl-3 !bg-transparent mt-[-2px]"
+                             suffixIcon={isCompact ? null : <CalendarFilled className="text-blue-500" />}
+                             disabledDate={(current) => current && current < dayjs().startOf('day')}
+                         />
+                    </div>
 
-                        {/* Ngày về */}
-                        <div 
-                            className={`col-span-1 border ${returnDate ? 'border-blue-500' : 'border-gray-300'} rounded-lg p-2 hover:border-blue-500 transition bg-white h-[60px] md:h-[70px] flex flex-col justify-center cursor-pointer group`}
-                            onClick={() => !returnDate && document.getElementById('return-date-picker')?.click()}
-                        >
-                            {!returnDate ? (
-                                <div className="flex items-center justify-center gap-1 md:gap-2 text-blue-600 font-medium h-full text-xs md:text-sm">
-                                    <PlusOutlined /> <span className="whitespace-nowrap">Thêm khứ hồi</span>
+                    {/* Ngày về */}
+                    <div 
+                        className={`${inputItemClass} ${dateItemClass} lg:border-r-0 cursor-pointer`}
+                        onClick={() => !returnDate && document.getElementById('return-date-picker')?.click()}
+                    >
+                        {!returnDate ? (
+                            <div className="flex items-center gap-1 lg:gap-2 text-blue-600 font-medium h-full px-1 text-xs lg:text-sm">
+                                <PlusOutlined /> <span className="whitespace-nowrap">Khứ hồi</span>
+                                <DatePicker 
+                                    id="return-date-picker" 
+                                    className="w-0 h-0 opacity-0 overflow-hidden absolute" 
+                                    onChange={setReturnDate} 
+                                    format="DD/MM/YYYY"
+                                    disabledDate={(current) => current && current < (date || dayjs())}
+                                />
+                            </div>
+                        ) : (
+                            <>
+                                <span className="text-[11px] text-gray-500 font-medium ml-2 lg:ml-3 lg:mt-[-4px]">Ngày về</span>
+                                <div className="flex items-center">
                                     <DatePicker 
-                                        id="return-date-picker" 
-                                        className="w-0 h-0 opacity-0 overflow-hidden absolute" 
+                                        value={returnDate} 
                                         onChange={setReturnDate} 
-                                        format="DD/MM/YYYY"
+                                        format="DD/MM/YYYY" 
+                                        variant="borderless" 
+                                        className="w-full text-sm font-bold p-0 pl-2 lg:pl-3 !bg-transparent mt-[-2px]" 
+                                        suffixIcon={null} 
                                         disabledDate={(current) => current && current < (date || dayjs())}
                                     />
+                                    <Button type="text" size="small" icon={<span className="text-gray-400">×</span>} onClick={(e) => { e.stopPropagation(); setReturnDate(null); }} className="mr-1" />
                                 </div>
-                            ) : (
-                                <>
-                                    <span className="text-[10px] md:text-xs text-gray-500 font-medium ml-3">Ngày về</span>
-                                    <div className="flex items-center">
-                                        <DatePicker 
-                                            value={returnDate} 
-                                            onChange={setReturnDate} 
-                                            format="DD/MM/YYYY" 
-                                            variant="borderless" 
-                                            className="w-full text-sm md:text-base font-bold p-0 pl-3" 
-                                            suffixIcon={<CalendarFilled className="text-blue-500" />} 
-                                            disabledDate={(current) => current && current < (date || dayjs())}
-                                        />
-                                        <Button type="text" size="small" icon={<span className="text-gray-400">×</span>} onClick={(e) => { e.stopPropagation(); setReturnDate(null); }} className="mr-1" />
-                                    </div>
-                                </>
-                            )}
-                        </div>
-
-                        <div className={`${isCompact ? 'w-full' : 'col-span-2 lg:col-span-1'} h-[50px] md:h-[70px] flex items-center mt-1 lg:mt-0`}> 
-                          <Button type="primary" block size="large" onClick={handleSearch} className="h-full !rounded-lg text-base md:text-lg font-bold shadow-md uppercase tracking-wide">
-                            Tìm kiếm
-                          </Button>
-                        </div>
+                            </>
+                        )}
                     </div>
+
+                    {/* Nút tìm kiếm */}
+                    <div className={buttonContainerClass}> 
+                      <Button 
+                        type="primary" 
+                        block 
+                        size={isCompact ? "middle" : "large"} 
+                        onClick={handleSearch} 
+                        className={`
+                             !rounded-lg font-bold shadow-md uppercase tracking-wide
+                             ${isCompact ? 'h-[50px] lg:h-[48px] lg:px-8 text-sm lg:text-base' : 'h-[50px] md:h-[70px] text-lg w-full'}
+                        `}
+                      >
+                        {isCompact ? 'Tìm' : 'Tìm kiếm'}
+                      </Button>
+                    </div>
+
                 </div>
             </div>
         </div>
-
-        {!isCompact && (
-          <div className="hidden md:block bg-black/50 backdrop-blur-md text-white py-3 w-full absolute bottom-0 z-10">
-            <div className="container mx-auto flex justify-center gap-8 lg:gap-16 text-sm font-medium">
-              <div className="flex items-center gap-2"><SafetyCertificateFilled className="text-yellow-400 text-xl" /><span>Chắc chắn có chỗ</span></div>
-              <div className="flex items-center gap-2"><PhoneFilled className="text-yellow-400 text-xl" /><span>Hỗ trợ 24/7</span></div>
-              <div className="flex items-center gap-2"><TagFilled className="text-yellow-400 text-xl" /><span>Nhiều ưu đãi</span></div>
-              <div className="flex items-center gap-2"><CreditCardFilled className="text-yellow-400 text-xl" /><span>Thanh toán đa dạng</span></div>
-            </div>
-          </div>
-        )}
       </div>
     </ConfigProvider>
   );
