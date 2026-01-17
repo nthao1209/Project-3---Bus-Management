@@ -28,7 +28,7 @@ export const initSocketServer = (srv?: ReturnType<typeof createServer>) => {
     throw new Error('No HTTP server available to attach Socket.IO');
   }
 
-  const defaultProdOrigin = 'httpts://project-3-bus-management.vercel.app';
+  const defaultProdOrigin = 'https://project-3-bus-management-production.up.railway.app/';
   const socketOrigin = process.env.SOCKET_ORIGIN || process.env.SOCKET_ORIGIN || (dev ? '*' : defaultProdOrigin);
   const corsOptions = { origin: socketOrigin, methods: ['GET', 'POST'], credentials: true };
 
