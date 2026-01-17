@@ -11,7 +11,7 @@ import {
   EnvironmentOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { io, Socket } from 'socket.io-client';
+import { createSocket } from '@/lib/socketClient';
 
 const { useBreakpoint } = Grid;
 
@@ -48,7 +48,7 @@ export default function BookingManager() {
   // Copy lại phần useEffect connect socket, fetchCompanies, fetchTrips, fetchTripDetails từ code cũ của bạn
   useEffect(() => {
     const socketOrigin = process.env.SOCKET_ORIGIN ;
-    const socketInstance = io(socketOrigin, { path: '/socket.io', transports: ['websocket'] });
+    const socketInstance = createSocket();
     setSocket(socketInstance);
     const fetchCompanies = async () => {
       try {

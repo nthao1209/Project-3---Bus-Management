@@ -14,7 +14,7 @@ import {
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend 
 } from 'recharts';
-import { io, Socket } from 'socket.io-client';
+import { createSocket } from '@/lib/socketClient';
 import dayjs from 'dayjs';
 
 const { useBreakpoint } = Grid;
@@ -51,7 +51,7 @@ export default function OwnerDashboard() {
   useEffect(() => {
     if (!currentUser) return;
     const socketOrigin = process.env.SOCKET_ORIGIN ;
-    const socketInstance = io(socketOrigin, { path: '/socket.io', transports: ['websocket'] });
+    const socketInstance = createSocket();
     socketInstance.on('connect', () => socketInstance.emit('join_user_room', currentUser._id));
     socketInstance.on('receive_notification', (notif: any) => {
       notification.warning({ title: notif.title || 'Thông báo', message: notif.message, placement: 'topRight' });
@@ -90,7 +90,7 @@ export default function OwnerDashboard() {
 
   useEffect(() => {
     const socketOrigin = process.env.SOCKET_ORIGIN ;
-    const socketInstance = io(socketOrigin, { path: '/socket.io', transports: ['websocket'] });
+    const socketInstance = createSocket();
     socketInstance.on('connect', () => { if (selectedCompany) socketInstance.emit('join_company_dashboard', selectedCompany); });
     socketInstance.on('new_booking', (eventData: any) => {
       if (!selectedCompany || eventData.companyId === selectedCompany) {

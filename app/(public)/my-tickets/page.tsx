@@ -12,7 +12,6 @@ import dayjs from 'dayjs';
 import { useRouter } from 'next/navigation';
 import ReviewModal from '@/components/ReviewModal';
 import { createSocket } from '@/lib/socketClient';
-import { Socket } from 'socket.io-client';
 
 interface Ticket {
   _id: string;

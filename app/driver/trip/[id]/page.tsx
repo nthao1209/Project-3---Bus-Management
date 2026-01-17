@@ -10,7 +10,7 @@ import {
 } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
 import dayjs from 'dayjs';
-import { io, Socket } from 'socket.io-client';
+import { createSocket } from '@/lib/socketClient';
  
 interface Booking {
   _id: string;
@@ -73,7 +73,7 @@ export default function TripDetail({ params }: { params: Promise<{ id: string }>
  
     // 2. Khởi tạo Socket
     const socketOrigin = process.env.SOCKET_ORIGIN ;
-    const socketInstance = io(socketOrigin, { path: '/socket.io', transports: ['websocket'], reconnectionAttempts: 5 });
+    const socketInstance = createSocket({ reconnectionAttempts: 5 });
  
     socketInstance.on('connect', () => {
       socketInstance.emit('join_trip', id);

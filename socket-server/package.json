@@ -1,0 +1,14 @@
+{
+  "name": "bus-management-socket-server",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "socket.io": "^4.8.3",
+    "dotenv": "^17.2.3",
+    "node-fetch": "^3.3.1",
+    "mongoose": "^9.0.0"
+  }
+}

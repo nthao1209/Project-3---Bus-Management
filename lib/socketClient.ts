@@ -9,19 +9,20 @@ export function createSocket(options: any = {}): Socket {
 
   if (socketInstance && socketInstance.connected) return socketInstance;
 
-  // Use current origin so the client connects back to the same host the app is served from.
-  const defaultSockets={
+  // Always use NEXT_PUBLIC_SOCKET_ORIGIN if set (for Vercel → Railway), else fallback to window.location.origin (for local/dev)
+  const defaultSockets = {
     path: '/socket.io',
-    transports: ['polling','websocket'],
+    transports: ['websocket', 'polling'],
     reconnectionAttempts: 5,
     reconnectionDelayMax: 5000,
     autoConnect: true,
     withCredentials: true,
   } as any;
 
-  const socks = { ...defaultSockets, ...options}
+  const socks = { ...defaultSockets, ...options };
 
-  const origin = `${window.location.protocol}//${window.location.host}`;
+  const envOrigin = (typeof window !== 'undefined' && (window as any).NEXT_PUBLIC_SOCKET_ORIGIN) || process.env.NEXT_PUBLIC_SOCKET_ORIGIN;
+  const origin = envOrigin || `${window.location.protocol}//${window.location.host}`;
 
   socketInstance = io(origin, socks);
   return socketInstance;

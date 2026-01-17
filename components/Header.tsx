@@ -25,7 +25,6 @@
   import Link from 'next/link';
   import { useRouter } from 'next/navigation';
   import { createSocket } from '@/lib/socketClient';
-  import { Socket } from 'socket.io-client';
 
   type Role = 'user' | 'owner' | 'driver' | 'admin';
 

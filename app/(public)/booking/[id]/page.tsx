@@ -1,3 +1,4 @@
+import type { Socket } from 'socket.io-client';
 'use client';
 
 import { useState, useEffect, use, useRef } from 'react';
@@ -5,7 +6,6 @@ import { Spin, message, Row, Col, Button, Drawer } from 'antd';
 import { useRouter } from 'next/navigation';
 import { EnvironmentOutlined, ShoppingCartOutlined } from '@ant-design/icons';
 import { createSocket } from '@/lib/socketClient';
-import { Socket } from 'socket.io-client';
 
 import TripHeader from '@/components/booking/TripHeader';
 import SeatMap from '@/components/booking/SeatMap';
